@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "18.10.2026 01:15:32",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 3.42)"
+  },
+  {
     "tarih": "18.10.2026 01:15:22",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1453,15 +1462,5 @@
     "ekran": "1470x767",
     "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
     "islem": "Maç İnceledi: Real Madrid - Barcelona"
-  },
-  {
-    "tarih": "17.10.2026 03:13:06",
-    "kullanici": "arda1234",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "1470x767",
-    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
-    "islem": "🔥 3-Tık 13'lü İstatistik Penceresini Açtı: Arsenal - Chelsea"
   }
 ]
