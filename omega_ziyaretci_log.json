@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "17.10.2026 23:25:11",
+    "kullanici": "Ziyaretçi (Giriş Ekranında)",
+    "ip": "156.221.15.104",
+    "konum": "Al Maḩallah al Kubra / Egypt",
+    "isp": "TE-AS",
+    "ekran": "392x735",
+    "cihaz": "Linux aarch64 | Mozilla/5.0 (Linux; Android 15; 23129RAA4G Build/AQ3A.240829.003;",
+    "islem": "Giriş Ekranını Açtı"
+  },
+  {
     "tarih": "17.10.2026 23:24:42",
     "kullanici": "admin",
     "ip": "5.24.227.253",
@@ -1464,15 +1474,5 @@
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "✅ Siteye Başarılı Giriş Yaptı"
-  },
-  {
-    "tarih": "17.10.2026 02:27:18",
-    "kullanici": "arda1234",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x608",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Çıkış Yaptı / Oturum Kapatıldı"
   }
 ]
