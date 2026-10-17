@@ -32,7 +32,7 @@
   "Matuhan": {
     "sifre_hash": "7c88f4bc",
     "sifre_maskeli": "32312c02",
-    "admin_mi": false,
+    "admin_mi": true,
     "kayit_tarihi": "17.10.2026 23:26"
   }
 }
