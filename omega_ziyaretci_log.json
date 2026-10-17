@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "17.10.2026 23:33:18",
+    "kullanici": "admin",
+    "ip": "5.24.227.253",
+    "konum": "Ankara / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x695",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "Çıkış Yaptı / Oturum Kapatıldı"
+  },
+  {
     "tarih": "17.10.2026 23:30:26",
     "kullanici": "arda",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1458,15 +1468,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🔥 3-Tık 13'lü İstatistik Penceresi Açıldı: Arsenal - Chelsea"
-  },
-  {
-    "tarih": "17.10.2026 02:32:55",
-    "kullanici": "arda1234",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x695",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "🔥 3-Tık 13'lü İstatistik Penceresini Açtı: Başakşehir - Samsunspor"
   }
 ]
