@@ -5645,41 +5645,104 @@ jobs:
 
 def _omega_otonom_bulut_sistemi_bagla():
     """
-    1) Üye ve Admin yetkilerini 'omega_uyeler.json' üzerinden anında çift yönlü senkronize eder.
-    2) Web'deki 18+13 AI Kupon Motorunu mutabakat sayımı, 4-senaryo testi ve EV optimizasyonu ile en zeki seviyeye çıkarır.
-    3) 5 dakikada bir otomatik güncelleme + üst barda manuel '🔄 Şimdi Yenile (5dk AI)' butonu ekler.
+    1) GitHub API 409/422 çakışma hatalarını RLock + 4 kademeli SHA Retry ile %100 engeller.
+    2) Üye ve Admin yetkilerini 'omega_uyeler.json' üzerinden Web ve Masaüstü arasında çift yönlü anlık senkronize eder.
+    3) Web Admin Panelini mobil ekranlar için sekmeli yapar ve 15 saniyelik yenilemelerde kapanmasını/titremesini önler.
+    4) Web'deki 18+13 AI Kupon Motorunu ve 5dk Otonom Bulut sistemini bağlar.
     """
     orijinal_html_uret = UyeVeGitHubYoneticisi._interaktif_html_uret
-    orijinal_paket_gonder = UyeVeGitHubYoneticisi.web_paketi_olustur_ve_gonder
+    api_yazma_kilidi = threading.RLock()
 
-    # Python tarafında üye/admin değiştiğinde hem omega_uyeler.json hem omega_canli_veri.json anında güncellensin
-    def _gelismis_aninda_uyeleri_github_guncelle(self):
-        if not self.github_ayarlari_tam_mi():
-            return
-        def _arkaplan_uye_push():
+    # 1. GITHUB API OKUMA VE YAZMA FONKSİYONLARINI ÇAKIŞMAYA KARŞI ZIRHLA
+    def _zirhli_github_dosya_oku(self, dosya_yolu: str):
+        owner = self.veriler["github_owner"]
+        repo = self.veriler["github_repo"]
+        branch = self.veriler["github_branch"]
+        token = self.veriler["github_token"]
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{dosya_yolu}?ref={branch}&_t={int(time.time()*1000)}"
+
+        for auth_prefix in ("Bearer", "token"):
+            headers = {
+                "Authorization": f"{auth_prefix} {token}",
+                "Accept": "application/vnd.github.v3+json",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "If-None-Match": '""',
+                "User-Agent": "OmegaQuantumAI-Reader-v4"
+            }
             try:
-                uye_sozluk = self._web_uye_sozlugu_hazirla()
-                self._github_dosya_uzerine_yaz(
-                    "omega_uyeler.json",
-                    json.dumps(uye_sozluk, ensure_ascii=False, indent=2),
-                    "Anlik Uye ve Admin Yetki Senkronizasyonu (omega_uyeler.json)"
-                )
-                mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
-                if mevcut_metin:
-                    veri = json.loads(mevcut_metin)
-                    veri["uyeler"] = uye_sozluk
-                    veri["timestamp"] = int(time.time())
-                    self._github_dosya_uzerine_yaz(
-                        "omega_canli_veri.json",
-                        json.dumps(veri, ensure_ascii=False),
-                        "Anlik Uye ve Admin Listesi Senkronizasyonu"
-                    )
+                req = urllib.request.Request(api_url, headers=headers, method="GET")
+                with urllib.request.urlopen(req, timeout=10, context=self.ssl_context) as resp:
+                    veri = json.loads(resp.read().decode("utf-8"))
+                    icerik_b64 = veri.get("content", "")
+                    cozulmus = base64.b64decode(icerik_b64).decode("utf-8", errors="ignore")
+                    return cozulmus, veri.get("sha")
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    continue
+                return None, None
             except Exception:
-                pass
-        threading.Thread(target=_arkaplan_uye_push, daemon=True).start()
+                return None, None
+        return None, None
 
-    def _gelismis_webden_uyeleri_senkronize_et(self):
+    def _zirhli_github_dosya_uzerine_yaz(self, dosya_yolu: str, icerik_metni: str, commit_mesaji: str):
         if not self.github_ayarlari_tam_mi():
+            return False, "GitHub ayarları eksik"
+
+        owner = self.veriler["github_owner"]
+        repo = self.veriler["github_repo"]
+        branch = self.veriler["github_branch"]
+        token = self.veriler["github_token"]
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{dosya_yolu}"
+        b64_content = base64.b64encode(icerik_metni.encode("utf-8")).decode("utf-8")
+
+        with api_yazma_kilidi:
+            son_hata = "Bilinmeyen hata"
+            for deneme in range(4):
+                _, sha = self._github_dosya_oku(dosya_yolu)
+                body = {
+                    "message": commit_mesaji,
+                    "content": b64_content,
+                    "branch": branch
+                }
+                if sha:
+                    body["sha"] = sha
+                data_bytes = json.dumps(body).encode("utf-8")
+
+                for auth_prefix in ("Bearer", "token"):
+                    headers = {
+                        "Authorization": f"{auth_prefix} {token}",
+                        "Accept": "application/vnd.github.v3+json",
+                        "Content-Type": "application/json",
+                        "User-Agent": "OmegaQuantumAI-Updater-v4"
+                    }
+                    try:
+                        req_put = urllib.request.Request(api_url, data=data_bytes, headers=headers, method="PUT")
+                        with urllib.request.urlopen(req_put, timeout=14, context=self.ssl_context) as resp:
+                            if resp.status in (200, 201):
+                                return True, "Başarılı"
+                    except urllib.error.HTTPError as e:
+                        son_hata = f"HTTP {e.code}"
+                        if e.code == 401:
+                            continue
+                        break
+                    except Exception as ex:
+                        son_hata = str(ex)[:40]
+                        break
+
+                time.sleep(0.55 * (deneme + 1))
+
+            return False, son_hata
+
+    UyeVeGitHubYoneticisi._github_dosya_oku = _zirhli_github_dosya_oku
+    UyeVeGitHubYoneticisi._github_dosya_uzerine_yaz = _zirhli_github_dosya_uzerine_yaz
+
+    # 2. ÇİFT YÖNLÜ ANLIK ÜYE VE ADMİN SENKRONİZASYONU (WEB VE MASAÜSTÜ ARASINDA)
+    def _gelismis_webden_uyeleri_senkronize_et(self, zorla=False):
+        if not self.github_ayarlari_tam_mi():
+            return False
+        son_yerel_ts = getattr(self, "_son_yerel_uye_degisim_ts", 0)
+        if not zorla and (time.time() - son_yerel_ts) < 10.0:
             return False
         try:
             uzak_uyeler = None
@@ -5702,34 +5765,536 @@ def _omega_otonom_bulut_sistemi_bagla():
                 return False
 
             yeni_yerel = {}
+            degisti_mi = (set(uzak_uyeler.keys()) != set(self.veriler.get("uyeler", {}).keys()))
+
             for k, detay in uzak_uyeler.items():
+                if not isinstance(detay, dict):
+                    continue
                 eski = self.veriler["uyeler"].get(k, {})
                 cozulen_sifre = self.token_coz(detay.get("sifre_maskeli", "")) if detay.get("sifre_maskeli") else eski.get("sifre", "1234")
                 if cozulen_sifre in ("***", "") and eski.get("sifre"):
                     cozulen_sifre = eski.get("sifre")
+
+                s_hash = detay.get("sifre_hash") or eski.get("sifre_hash") or self.kodu_hashle(cozulen_sifre)
+                s_mask = detay.get("sifre_maskeli") or eski.get("sifre_maskeli") or self.token_gizle(cozulen_sifre)
+                adm_mi = bool(detay.get("admin_mi", True if k.lower() == "admin" else False))
+
+                if eski.get("admin_mi") != adm_mi or eski.get("sifre_hash") != s_hash:
+                    degisti_mi = True
+
                 yeni_yerel[k] = {
                     "sifre": cozulen_sifre,
-                    "sifre_hash": detay.get("sifre_hash", self.kodu_hashle(cozulen_sifre)),
-                    "sifre_maskeli": detay.get("sifre_maskeli", self.token_gizle(cozulen_sifre)),
-                    "admin_mi": bool(detay.get("admin_mi", False)),
+                    "sifre_hash": s_hash,
+                    "sifre_maskeli": s_mask,
+                    "admin_mi": adm_mi,
                     "kayit_tarihi": detay.get("kayit_tarihi", eski.get("kayit_tarihi", "-"))
                 }
-            self.veriler["uyeler"] = yeni_yerel
-            self.kaydet()
-            return True
+
+            if yeni_yerel:
+                self.veriler["uyeler"] = yeni_yerel
+                self.kaydet()
+                return degisti_mi or True
+            return False
         except Exception:
             return False
 
-    UyeVeGitHubYoneticisi.aninda_uyeleri_github_guncelle = _gelismis_aninda_uyeleri_github_guncelle
-    UyeVeGitHubYoneticisi.webden_gelen_uyeleri_yerel_senkronize_et = _gelismis_webden_uyeleri_senkronize_et
+    def _gelismis_aninda_uyeleri_github_guncelle(self):
+        self._son_yerel_uye_degisim_ts = time.time()
+        if not self.github_ayarlari_tam_mi():
+            return
 
+        def _arkaplan_uye_push():
+            try:
+                uye_sozluk = self._web_uye_sozlugu_hazirla()
+                self._github_dosya_uzerine_yaz(
+                    "omega_uyeler.json",
+                    json.dumps(uye_sozluk, ensure_ascii=False, indent=2),
+                    "Anlik Uye ve Admin Yetki Senkronizasyonu (omega_uyeler.json)"
+                )
+                mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
+                if mevcut_metin:
+                    veri = json.loads(mevcut_metin)
+                    veri["uyeler"] = uye_sozluk
+                    veri["timestamp"] = int(time.time())
+                    self._github_dosya_uzerine_yaz(
+                        "omega_canli_veri.json",
+                        json.dumps(veri, ensure_ascii=False),
+                        "Anlik Uye ve Admin Listesi Senkronizasyonu"
+                    )
+            except Exception:
+                pass
+
+        threading.Thread(target=_arkaplan_uye_push, daemon=True).start()
+
+    orijinal_uye_ekle = UyeVeGitHubYoneticisi.uye_ekle
+    orijinal_uye_sil = UyeVeGitHubYoneticisi.uye_sil
+    orijinal_uye_admin_degistir = UyeVeGitHubYoneticisi.uye_admin_degistir
+
+    def _senkron_uye_ekle(self, kullanici_adi: str, sifre: str, admin_mi: bool = False):
+        self.webden_gelen_uyeleri_yerel_senkronize_et(zorla=True)
+        self._son_yerel_uye_degisim_ts = time.time()
+        return orijinal_uye_ekle(self, kullanici_adi, sifre, admin_mi)
+
+    def _senkron_uye_sil(self, kullanici_adi: str):
+        self.webden_gelen_uyeleri_yerel_senkronize_et(zorla=True)
+        self._son_yerel_uye_degisim_ts = time.time()
+        return orijinal_uye_sil(self, kullanici_adi)
+
+    def _senkron_uye_admin_degistir(self, kullanici_adi: str, yeni_admin_durumu: bool = None):
+        self.webden_gelen_uyeleri_yerel_senkronize_et(zorla=True)
+        self._son_yerel_uye_degisim_ts = time.time()
+        return orijinal_uye_admin_degistir(self, kullanici_adi, yeni_admin_durumu)
+
+    UyeVeGitHubYoneticisi.webden_gelen_uyeleri_senkronize_et = _gelismis_webden_uyeleri_senkronize_et
+    UyeVeGitHubYoneticisi.webden_gelen_uyeleri_yerel_senkronize_et = _gelismis_webden_uyeleri_senkronize_et
+    UyeVeGitHubYoneticisi.aninda_uyeleri_github_guncelle = _gelismis_aninda_uyeleri_github_guncelle
+    UyeVeGitHubYoneticisi.uye_ekle = _senkron_uye_ekle
+    UyeVeGitHubYoneticisi.uye_sil = _senkron_uye_sil
+    UyeVeGitHubYoneticisi.uye_admin_degistir = _senkron_uye_admin_degistir
+
+    # 3. MASAÜSTÜ (TKINTER) ÜYE YÖNETİM PENCERESİNİ CANLI OTOMATİK YENİLENİR YAP
+    def _canli_uye_yonetim_penceresi_ac(self):
+        f_ana = self.ayarlar.ana_font
+        pencere = tk.Toplevel(self.root)
+        pencere.title("👥 Site Üye & 👑 Admin Yetkisi Yönetimi (Web ile Canlı Senkronize)")
+        self._pencereyi_ortala(700, 610, pencere)
+        pencere.configure(bg="#0f172a")
+        pencere.transient(self.root)
+        pencere.grab_set()
+
+        tk.Label(
+            pencere, text="👥 WEB SİTESİ ÜYE KAYIT VE 👑 ADMİN TİKİ YÖNETİM PANELİ",
+            bg="#0f172a", fg="#38bdf8", font=(f_ana, 14, "bold")
+        ).pack(pady=(12, 3))
+
+        durum_bilgi_lbl = tk.Label(
+            pencere,
+            text="🔄 Web Admin Paneli ile canlı senkronize (Web'den eklenen/silinen üyeler otomatik buraya düşer)",
+            bg="#0f172a", fg="#4ade80", font=(f_ana, 9, "bold")
+        )
+        durum_bilgi_lbl.pack(pady=(0, 8))
+
+        form_frame = tk.LabelFrame(
+            pencere, text=" ➕ Yeni Üye Kayıt / Güncelleme Formu ", bg="#1e293b", fg="#4ade80",
+            font=(f_ana, 10, "bold"), padx=14, pady=10
+        )
+        form_frame.pack(fill=tk.X, padx=16, pady=6)
+        form_frame.columnconfigure(1, weight=1)
+
+        tk.Label(form_frame, text="Kullanıcı Adı:", bg="#1e293b", fg="#f8fafc", font=(f_ana, 10, "bold")).grid(row=0, column=0, padx=8, pady=6, sticky="w")
+        k_entry = tk.Entry(form_frame, bg="#0f172a", fg="#ffffff", insertbackground="white", font=(f_ana, 11))
+        k_entry.grid(row=0, column=1, padx=8, pady=6, sticky="ew")
+
+        tk.Label(form_frame, text="Şifre:", bg="#1e293b", fg="#f8fafc", font=(f_ana, 10, "bold")).grid(row=1, column=0, padx=8, pady=6, sticky="w")
+        s_entry = tk.Entry(form_frame, bg="#0f172a", fg="#ffffff", insertbackground="white", font=(f_ana, 11))
+        s_entry.grid(row=1, column=1, padx=8, pady=6, sticky="ew")
+
+        admin_tik_var = tk.BooleanVar(value=False)
+        admin_chk = tk.Checkbutton(
+            form_frame,
+            text="👑 Admin Yetkisi Ver (Site Üzerinden Üye Ekle/Sil, Adminlik Ver/Al ve Logları Gör)",
+            variable=admin_tik_var,
+            bg="#1e293b", fg="#fbbf24", selectcolor="#0284c7",
+            activebackground="#1e293b", activeforeground="#fbbf24",
+            font=(f_ana, 9, "bold"), cursor="hand2"
+        )
+        admin_chk.grid(row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(4, 4))
+
+        liste_frame = tk.LabelFrame(
+            pencere, text=" 📋 Kayıtlı Site Üyeleri ve Adminlik Durumu (Çift Tıkla -> Adminlik Tikini Aç/Kapat) ",
+            bg="#1e293b", fg="#38bdf8", font=(f_ana, 10, "bold")
+        )
+        liste_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
+
+        uye_tree = ttk.Treeview(liste_frame, columns=("kullanici", "sifre", "admin_durum", "tarih"), show="headings", height=7)
+        uye_tree.heading("kullanici", text="Kullanıcı Adı")
+        uye_tree.heading("sifre", text="Şifre")
+        uye_tree.heading("admin_durum", text="👑 Admin Tiki")
+        uye_tree.heading("tarih", text="Kayıt Tarihi")
+        uye_tree.column("kullanici", width=160)
+        uye_tree.column("sifre", width=115, anchor="center")
+        uye_tree.column("admin_durum", width=170, anchor="center")
+        uye_tree.column("tarih", width=155, anchor="center")
+        uye_tree.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+        son_tablo_imzasi = {"imza": ""}
+
+        def _tabloyu_yenile(zorla=False):
+            if not uye_tree.winfo_exists():
+                return
+            uyeler_dict = self.uye_github_yoneticisi.veriler.get("uyeler", {})
+            yeni_imza = json.dumps(uyeler_dict, sort_keys=True, ensure_ascii=False)
+            if not zorla and yeni_imza == son_tablo_imzasi["imza"]:
+                return
+            son_tablo_imzasi["imza"] = yeni_imza
+
+            secili_ad = None
+            secim = uye_tree.selection()
+            if secim:
+                secili_ad = str(uye_tree.item(secim[0])["values"][0])
+
+            for item in uye_tree.get_children():
+                uye_tree.delete(item)
+
+            for k_adi, detay in uyeler_dict.items():
+                adm_mi = bool(detay.get("admin_mi", False))
+                adm_etiket = "☑️ 👑 ADMİN YETKİLİ" if adm_mi else "⬜ 👤 Standart Üye"
+                item_id = uye_tree.insert("", tk.END, values=(k_adi, detay.get("sifre", "***"), adm_etiket, detay.get("kayit_tarihi", "-")))
+                if secili_ad and k_adi == secili_ad:
+                    uye_tree.selection_set(item_id)
+
+        def _uye_kaydet_aksiyon(event=None):
+            k_str = k_entry.get().strip()
+            s_str = s_entry.get().strip()
+            adm_bool = admin_tik_var.get()
+            if not k_str or not s_str:
+                messagebox.showwarning("Uyarı", "Kullanıcı adı ve şifre boş bırakılamaz!")
+                return
+            durum_bilgi_lbl.config(text=f"⏳ '{k_str}' kaydediliyor ve GitHub'a anında işleniyor...", fg="#fbbf24")
+            pencere.update_idletasks()
+
+            basarili, mesaj = self.uye_github_yoneticisi.uye_ekle(k_str, s_str, admin_mi=adm_bool)
+            if basarili:
+                k_entry.delete(0, tk.END)
+                s_entry.delete(0, tk.END)
+                admin_tik_var.set(False)
+                _tabloyu_yenile(zorla=True)
+                self._ziyaretci_loglarini_guncelle()
+                durum_bilgi_lbl.config(text=f"✅ '{k_str}' kaydedildi ve Web Admin Paneli ile senkronize edildi!", fg="#4ade80")
+            else:
+                messagebox.showwarning("Uyarı", mesaj)
+
+        def _secili_admin_tiki_degistir(event=None):
+            secim = uye_tree.selection()
+            if not secim:
+                messagebox.showwarning("Uyarı", "Lütfen adminlik yetkisini değiştirmek istediğiniz üyeyi listeden seçin!")
+                return
+            secili_k = str(uye_tree.item(secim[0])["values"][0])
+            durum_bilgi_lbl.config(text=f"⏳ '{secili_k}' yetkisi güncelleniyor...", fg="#fbbf24")
+            pencere.update_idletasks()
+
+            basarili, mesaj = self.uye_github_yoneticisi.uye_admin_degistir(secili_k)
+            if basarili:
+                _tabloyu_yenile(zorla=True)
+                self._ziyaretci_loglarini_guncelle()
+                durum_bilgi_lbl.config(text=f"✅ {mesaj} (Web'e anında işlendi)", fg="#4ade80")
+            else:
+                messagebox.showwarning("Uyarı", mesaj)
+
+        def _uye_sil_aksiyon():
+            secim = uye_tree.selection()
+            if not secim:
+                messagebox.showwarning("Uyarı", "Lütfen silmek istediğiniz üyeyi listeden seçin!")
+                return
+            secili_k = str(uye_tree.item(secim[0])["values"][0])
+            durum_bilgi_lbl.config(text=f"⏳ '{secili_k}' siliniyor...", fg="#fbbf24")
+            pencere.update_idletasks()
+
+            basarili, mesaj = self.uye_github_yoneticisi.uye_sil(secili_k)
+            if basarili:
+                _tabloyu_yenile(zorla=True)
+                self._ziyaretci_loglarini_guncelle()
+                durum_bilgi_lbl.config(text=f"🗑️ '{secili_k}' silindi ve Web erişimi anında kapatıldı!", fg="#4ade80")
+            else:
+                messagebox.showwarning("Uyarı", mesaj)
+
+        def _webden_uyeleri_cek_aksiyon(sessiz=False):
+            def _bg_cek():
+                ok = self.uye_github_yoneticisi.webden_gelen_uyeleri_yerel_senkronize_et(zorla=not sessiz)
+                if pencere.winfo_exists():
+                    pencere.after(0, lambda: _tabloyu_yenile(zorla=False))
+                    if not sessiz and ok:
+                        pencere.after(0, lambda: durum_bilgi_lbl.config(
+                            text=f"✅ Web Admin Panelindeki güncel üyeler senkronize edildi ({datetime.datetime.now().strftime('%H:%M:%S')})",
+                            fg="#4ade80"
+                        ))
+            threading.Thread(target=_bg_cek, daemon=True).start()
+
+        def _otomatik_pencere_senkron_dongusu():
+            if not pencere.winfo_exists():
+                return
+            _webden_uyeleri_cek_aksiyon(sessiz=True)
+            pencere.after(4000, _otomatik_pencere_senkron_dongusu)
+
+        kaydet_btn_cerceve = tk.Frame(form_frame, bg="#16a34a", cursor="hand2")
+        kaydet_btn_cerceve.grid(row=3, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 4))
+        kaydet_btn_lbl = tk.Label(
+            kaydet_btn_cerceve, text="💾 YENİ ÜYEYİ KAYDET VE ANINDA SİTEYE AKTİF ET",
+            bg="#16a34a", fg="#ffffff", font=(f_ana, 11, "bold"), pady=8, cursor="hand2"
+        )
+        kaydet_btn_lbl.pack(fill=tk.X)
+        for w in (kaydet_btn_cerceve, kaydet_btn_lbl):
+            w.bind("<Button-1>", _uye_kaydet_aksiyon)
+
+        s_entry.bind("<Return>", _uye_kaydet_aksiyon)
+        k_entry.bind("<Return>", _uye_kaydet_aksiyon)
+        uye_tree.bind("<Double-1>", _secili_admin_tiki_degistir)
+
+        alt_buton_bar = tk.Frame(pencere, bg="#0f172a")
+        alt_buton_bar.pack(fill=tk.X, padx=16, pady=(0, 12))
+
+        ttk.Button(
+            alt_buton_bar, text="👑 Seçili Üyenin Adminlik Tikini Aç / Kapat", style="Gold.TButton",
+            command=_secili_admin_tiki_degistir
+        ).pack(side=tk.LEFT, padx=4, expand=True, fill=tk.X)
+
+        ttk.Button(
+            alt_buton_bar, text="🗑️ Seçili Üyeyi Sil", style="Accent.TButton",
+            command=_uye_sil_aksiyon
+        ).pack(side=tk.LEFT, padx=4, expand=True, fill=tk.X)
+
+        ttk.Button(
+            alt_buton_bar, text="🔄 Web'den Şimdi Çek", style="Success.TButton",
+            command=lambda: _webden_uyeleri_cek_aksiyon(sessiz=False)
+        ).pack(side=tk.LEFT, padx=4, expand=True, fill=tk.X)
+
+        _tabloyu_yenile(zorla=True)
+        _webden_uyeleri_cek_aksiyon(sessiz=False)
+        pencere.after(4000, _otomatik_pencere_senkron_dongusu)
+
+    OmegaTahminArayuzu._uye_yonetim_penceresi_ac = _canli_uye_yonetim_penceresi_ac
+
+    # 4. WEB PAKETİ GÖNDERİLİRKEN WEB'DEKİ ÜYELERİN EZİLMESİNİ ENGELLE
+    def _guvenli_web_paketi_olustur_ve_gonder(
+        self, veri_motoru, ai_motoru, secili_mac_ozeti,
+        son_3tik_mac_baslik="", canli_yayin_aktif=True, auto_web_aktif=True,
+        sadece_json=False, durum_callback=None
+    ):
+        if not self.gonderim_kilidi.acquire(blocking=False):
+            return False
+
+        try:
+            if self.github_ayarlari_tam_mi():
+                self.webden_gelen_uyeleri_yerel_senkronize_et(zorla=False)
+
+            simdi_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            unix_ts = int(time.time())
+
+            self.veriler["auto_web_aktif"] = bool(auto_web_aktif)
+            self.kaydet()
+
+            web_maclar = []
+            for m in veri_motoru.gelecek_maclar:
+                analiz = ai_motoru.tam_analiz_yap(m)
+                detay_13 = ai_motoru.onuc_sistem_detayli_istatistik_analizi(m, analiz)
+                web_maclar.append(self._mac_analizini_json_yap(m, analiz, detay_13))
+
+            web_uyeler = self._web_uye_sozlugu_hazirla()
+            masked_token = self.token_gizle(self.veriler["github_token"])
+            ai_onbellek_parametreleri = ai_motoru.web_icin_model_parametrelerini_aktar()
+
+            payload = {
+                "guncelleme_tarihi": simdi_str,
+                "timestamp": unix_ts,
+                "canli_mod": bool(canli_yayin_aktif),
+                "auto_web": bool(auto_web_aktif),
+                "secili_mac_baslik": f"{secili_mac_ozeti['ev']} - {secili_mac_ozeti['dep']}" if secili_mac_ozeti else "",
+                "son_3tik_mac_baslik": son_3tik_mac_baslik or "",
+                "uyeler": web_uyeler,
+                "ai_motor_p": ai_onbellek_parametreleri,
+                "gh_cfg": {
+                    "o": self.veriler["github_owner"],
+                    "r": self.veriler["github_repo"],
+                    "b": self.veriler["github_branch"],
+                    "k": masked_token
+                },
+                "takim_profilleri": veri_motoru.takim_profilleri,
+                "maclar": web_maclar
+            }
+
+            json_icerik = json.dumps(payload, ensure_ascii=False)
+            html_icerik = self._interaktif_html_uret(payload)
+            php_icerik = self._php_proxy_kodu_uret()
+
+            try:
+                with open("omega_canli_veri.json", "w", encoding="utf-8") as f:
+                    f.write(json_icerik)
+                with open("omega_uyeler.json", "w", encoding="utf-8") as f:
+                    json.dump(web_uyeler, f, ensure_ascii=False, indent=2)
+                with open("index.html", "w", encoding="utf-8") as f:
+                    f.write(html_icerik)
+                with open("omega_proxy.php", "w", encoding="utf-8") as f:
+                    f.write(php_icerik)
+            except Exception:
+                pass
+
+            if not self.github_ayarlari_tam_mi():
+                if durum_callback:
+                    durum_callback(f"⚠️ Yerel index.html hazır ({simdi_str}) - GitHub ayarı bekleniyor")
+                return False
+
+            if canli_yayin_aktif and auto_web_aktif:
+                durum_etiket = "PC Oncelikli + AutoWeb Yedekli"
+            elif canli_yayin_aktif:
+                durum_etiket = "PC Canli 15s"
+            elif auto_web_aktif:
+                durum_etiket = "AutoWeb 15s Otonom AI"
+            else:
+                durum_etiket = "Son Kayitli Tahmin (Sabit)"
+
+            mevcut_log, _ = self._github_dosya_oku("omega_ziyaretci_log.json")
+            if mevcut_log is None:
+                baslangic_log = json.dumps(self._yerel_loglari_oku(), ensure_ascii=False, indent=2)
+                self._github_dosya_uzerine_yaz("omega_ziyaretci_log.json", baslangic_log, "Log dosyasi olusturuldu")
+
+            self._github_dosya_uzerine_yaz(
+                "omega_uyeler.json",
+                json.dumps(web_uyeler, ensure_ascii=False, indent=2),
+                f"OMEGA Uye ve Admin Listesi ({simdi_str})"
+            )
+
+            ok_json, msg_json = self._github_dosya_uzerine_yaz(
+                "omega_canli_veri.json", json_icerik, f"OMEGA Veri ({durum_etiket} - {simdi_str})"
+            )
+
+            if not sadece_json:
+                self._github_dosya_uzerine_yaz(".nojekyll", "", "Jekyll devre disi")
+                self._github_dosya_uzerine_yaz("omega_proxy.php", php_icerik, "OMEGA PHP Canli Veri Koprusu")
+                self._github_dosya_uzerine_yaz(
+                    "index.html", html_icerik, f"OMEGA Arayuz v4.0 ({durum_etiket} - {simdi_str})"
+                )
+                try:
+                    if os.path.exists(__file__):
+                        with open(__file__, "r", encoding="utf-8") as f:
+                            bu_dosya_kodu = f.read()
+                        self._github_dosya_uzerine_yaz(
+                            "omega_bulut_motoru.py", bu_dosya_kodu, "OMEGA 18+13 AI Tam Python Bulut Motoru"
+                        )
+                    yaml_icerik = _github_actions_yaml_uret()
+                    self._github_dosya_uzerine_yaz(
+                        ".github/workflows/omega_otonom_ai.yml", yaml_icerik, "OMEGA 5dk Otonom GitHub Actions Kurulumu"
+                    )
+                except Exception:
+                    pass
+
+            if ok_json:
+                if durum_callback:
+                    durum_callback(f"🌐 GitHub Güncellendi [{durum_etiket}] ({simdi_str})")
+                return True
+            else:
+                if durum_callback:
+                    durum_callback(f"❌ GitHub Güncelleme Hatası: {msg_json}")
+                return False
+        finally:
+            self.gonderim_kilidi.release()
+
+    # 5. MOBİL UYUMLU + 15 SANİYEDE KAPANMAYAN / TİTREMEYEN WEB ADMİN PANELİ YAMASI
     ek_yama_js_kodu = r"""
-// ==================== TAM YETKİLİ WEB ADMİN + 18 SİSTEMLİ ULTRA-ZEKİ AI KUPON + 5DK & MANUEL YENİLEME MOTORU ====================
+<style>
+  /* MOBİL VE MASAÜSTÜ ADMİN PANELİ TAM UYUMLULUK YAMASI */
+  .adm-mobil-sekmeler {
+    display: none;
+    gap: 8px;
+    padding: 10px 12px 0 12px;
+    background: #0f172a;
+  }
+  .adm-mobil-tab-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #94a3b8;
+    font-weight: 800;
+    font-size: 12.5px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .adm-mobil-tab-btn.aktif {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    color: #ffffff;
+    border-color: #fbbf24;
+  }
+  #modal-admin-overlay table th,
+  #modal-admin-overlay table td {
+    white-space: nowrap;
+    padding: 8px 10px;
+    vertical-align: middle;
+  }
+  #modal-admin-overlay .treeview-box {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (max-width: 920px) {
+    #modal-admin-overlay {
+      padding: 0 !important;
+    }
+    #modal-admin-overlay .modal-box {
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }
+    #modal-admin-overlay .modal-header {
+      padding: 10px 12px !important;
+    }
+    #modal-admin-overlay .modal-header h3 {
+      font-size: 13px !important;
+      line-height: 1.3;
+    }
+    .adm-mobil-sekmeler {
+      display: flex !important;
+    }
+    #adm-ana-grid {
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 10px !important;
+      gap: 10px !important;
+      overflow-y: auto !important;
+    }
+    #adm-sol-panel, #adm-sag-panel {
+      min-height: 0 !important;
+      flex: 1 !important;
+      width: 100% !important;
+    }
+    .admin-form-bar {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 8px !important;
+      padding: 10px !important;
+    }
+    .admin-form-bar .admin-inp,
+    .admin-form-bar button {
+      width: 100% !important;
+      min-height: 40px !important;
+      font-size: 14px !important;
+    }
+  }
+  body.mobile-mode #modal-admin-overlay { padding: 0 !important; }
+  body.mobile-mode #modal-admin-overlay .modal-box {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 100dvh !important; max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  body.mobile-mode .adm-mobil-sekmeler { display: flex !important; }
+  body.mobile-mode #adm-ana-grid {
+    display: flex !important; flex-direction: column !important;
+    padding: 10px !important; gap: 10px !important;
+  }
+  body.mobile-mode #adm-sol-panel, body.mobile-mode #adm-sag-panel {
+    min-height: 0 !important; flex: 1 !important; width: 100% !important;
+  }
+</style>
+<script>
+// ==================== KAPANMAZ / TİTREMEZ WEB ADMİN PANELİ + 18-AI KUPON + ÇAKIŞMASIZ GITHUB KUYRUĞU ====================
 let besDakikaSayaci = 300;
 let sonUyeDegisiklikZamani = 0;
+let sonBilinenUyeSha = "";
 let manuelYenilemeCalisiyor = false;
+let ghYazmaKuyrugu = Promise.resolve();
+let aktifAdminMobilSekme = 1;
+let adminPaneliKullaniciAcikTutuyor = false;
+let sonWebUyeTabloImzasi = "";
 
-// Türkçe karakter ve emoji bozulmalarını %100 önleyen güvenli Base64 çeviriciler
+function adminPaneliSuAnAcikMi() {
+  const el = document.getElementById("modal-admin-overlay");
+  return Boolean(adminPaneliKullaniciAcikTutuyor || (el && el.style.display === "flex"));
+}
+
 function utf8ToB64(str) {
   try {
     const bytes = new TextEncoder().encode(str);
@@ -5753,7 +6318,88 @@ function b64ToUtf8(b64) {
   }
 }
 
-// Hem 'Bearer' hem 'token' başlığını otomatik deneyen GitHub API İstek Motoru
+function yerelUyeOnbellekKaydet(uyelerObj, shaVal) {
+  try {
+    localStorage.setItem("omega_uyeler_cache_v4", JSON.stringify({
+      ts: Date.now(),
+      sha: shaVal || sonBilinenUyeSha || "",
+      uyeler: uyelerObj
+    }));
+  } catch (e) {}
+}
+
+function yerelUyeOnbellekOku() {
+  try {
+    const ham = localStorage.getItem("omega_uyeler_cache_v4");
+    if (!ham) return null;
+    const parsed = JSON.parse(ham);
+    if (parsed && parsed.uyeler && typeof parsed.uyeler === "object") {
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function adminMobilYapiyiHazirla() {
+  const modalBox = document.querySelector("#modal-admin-overlay .modal-box");
+  if (!modalBox || document.getElementById("adm-mobil-sekme-bar")) return;
+
+  // Dış siyah alana yanlışlıkla dokunulduğunda Admin Panelinin kapanmasını engelle (Sadece X KAPAT butonu kapatsın)
+  const overlayEl = document.getElementById("modal-admin-overlay");
+  if (overlayEl) {
+    overlayEl.onclick = null;
+  }
+
+  const closeBtn = modalBox.querySelector(".modal-close-btn");
+  if (closeBtn) {
+    closeBtn.onclick = () => modalAdminKapat(true);
+  }
+
+  const gridDiv = modalBox.children[1];
+  if (!gridDiv) return;
+  gridDiv.id = "adm-ana-grid";
+
+  if (gridDiv.children[0]) gridDiv.children[0].id = "adm-sol-panel";
+  if (gridDiv.children[1]) gridDiv.children[1].id = "adm-sag-panel";
+
+  const sekmeBar = document.createElement("div");
+  sekmeBar.id = "adm-mobil-sekme-bar";
+  sekmeBar.className = "adm-mobil-sekmeler";
+  sekmeBar.innerHTML = `
+    <button type="button" id="adm-mtab-1" class="adm-mobil-tab-btn aktif" onclick="adminMobilSekmeSec(1)">👥 Üyeler & 👑 Admin Tiki</button>
+    <button type="button" id="adm-mtab-2" class="adm-mobil-tab-btn" onclick="adminMobilSekmeSec(2)">🕵️ Siteye Girenler & IP Log</button>
+  `;
+  modalBox.insertBefore(sekmeBar, gridDiv);
+  adminMobilSekmeUygula();
+}
+
+function adminMobilSekmeSec(no) {
+  aktifAdminMobilSekme = no;
+  adminMobilSekmeUygula();
+  if (no === 2) webAdminLoglariYenile();
+}
+
+function adminMobilSekmeUygula() {
+  const sol = document.getElementById("adm-sol-panel");
+  const sag = document.getElementById("adm-sag-panel");
+  const b1 = document.getElementById("adm-mtab-1");
+  const b2 = document.getElementById("adm-mtab-2");
+  if (!sol || !sag) return;
+
+  const mobilMi = window.innerWidth <= 920 || document.body.classList.contains("mobile-mode");
+  if (!mobilMi) {
+    sol.style.display = "flex";
+    sag.style.display = "flex";
+  } else {
+    sol.style.display = aktifAdminMobilSekme === 1 ? "flex" : "none";
+    sag.style.display = aktifAdminMobilSekme === 2 ? "flex" : "none";
+  }
+  if (b1) b1.classList.toggle("aktif", aktifAdminMobilSekme === 1);
+  if (b2) b2.classList.toggle("aktif", aktifAdminMobilSekme === 2);
+}
+
+window.addEventListener("resize", adminMobilSekmeUygula);
+
 async function ghApiIstek(yol, method = "GET", bodyObj = null) {
   const cfg = VERI.gh_cfg;
   if (!cfg || !cfg.o || !cfg.r || !cfg.k) return null;
@@ -5767,6 +6413,9 @@ async function ghApiIstek(yol, method = "GET", bodyObj = null) {
         "Authorization": `${authPrefix} ${token}`,
         "Accept": "application/vnd.github.v3+json"
       };
+      if (method === "GET") {
+        headers["If-None-Match"] = '""';
+      }
       if (bodyObj) headers["Content-Type"] = "application/json";
       const opts = {
         method: method,
@@ -5782,7 +6431,46 @@ async function ghApiIstek(yol, method = "GET", bodyObj = null) {
   return null;
 }
 
-// Büyük-küçük harf duyarsız kullanıcı bulucu
+function ghDosyaSiralikaydet(dosyaAdi, icerikStr, commitMesaji) {
+  const islem = ghYazmaKuyrugu.then(async () => {
+    const cfg = VERI.gh_cfg;
+    if (!cfg || !cfg.o || !cfg.r || !cfg.k) return { ok: false, sha: "" };
+    const branch = cfg.b || "main";
+    const b64Icerik = utf8ToB64(icerikStr);
+
+    for (let deneme = 0; deneme < 4; deneme++) {
+      try {
+        let sha = null;
+        const getRes = await ghApiIstek(`contents/${dosyaAdi}?ref=${branch}&_t=${Date.now()}`, "GET");
+        if (getRes && getRes.ok) {
+          const getJson = await getRes.json();
+          sha = getJson.sha;
+        }
+        const body = {
+          message: commitMesaji,
+          content: b64Icerik,
+          branch: branch
+        };
+        if (sha) body.sha = sha;
+
+        const putRes = await ghApiIstek(`contents/${dosyaAdi}`, "PUT", body);
+        if (putRes && putRes.ok) {
+          let yeniSha = "";
+          try {
+            const pJson = await putRes.json();
+            yeniSha = (pJson && pJson.content && pJson.content.sha) ? pJson.content.sha : "";
+          } catch (e) {}
+          return { ok: true, sha: yeniSha };
+        }
+      } catch (e) {}
+      await new Promise(r => setTimeout(r, 450 * (deneme + 1)));
+    }
+    return { ok: false, sha: "" };
+  });
+  ghYazmaKuyrugu = islem.catch(() => {});
+  return islem;
+}
+
 function kullaniciAnahtariBul(aranan) {
   if (!aranan || !VERI.uyeler) return null;
   const temiz = String(aranan).trim();
@@ -5798,63 +6486,140 @@ kullaniciAdminMi = function(kullaniciAdi) {
   return Boolean(VERI.uyeler[gercekAnahtar].admin_mi);
 };
 
-// GitHub'dan anlık olarak omega_uyeler.json dosyasını çeker (Önbelleğe takılmaz!)
-async function githubUyeleriAnlikCek() {
+// ÇOK ÖNEMLİ: 15 saniyelik yenilemelerde adminButonunuGuncelle çağrıldığında açık olan Admin Panelini ASLA kapatma!
+adminButonunuGuncelle = function() {
+  const aktifUser = oturumDegeriAl("omega_user");
+  const btn = document.getElementById("btn-admin-panel");
+  const uBadge = document.getElementById("user-badge");
+  const yetkiliMi = kullaniciAdminMi(aktifUser);
+  if (btn) {
+    btn.style.display = (yetkiliMi || adminPaneliSuAnAcikMi()) ? "inline-block" : "none";
+  }
+  if (uBadge && aktifUser) {
+    uBadge.textContent = (yetkiliMi ? "👑 " : "👤 ") + aktifUser;
+  }
+  // NOT: Burada eski kodda yer alan modalAdminKapat() çağrısı tamamen kaldırıldı!
+  // Böylece 15s yenilemelerinde Admin Paneli asla kendi kendine kapanmaz.
+};
+
+// Tablo sadece gerçek bir üye/yetki değişimi olduğunda çizilir (Gidip gelme / titreme %100 önlenir)
+const _orijinalWebAdminUyeTablosuYenile = webAdminUyeTablosuYenile;
+webAdminUyeTablosuYenile = function(zorla = false) {
+  const yeniImza = JSON.stringify(VERI.uyeler || {});
+  if (!zorla && yeniImza === sonWebUyeTabloImzasi) {
+    return;
+  }
+  sonWebUyeTabloImzasi = yeniImza;
+  _orijinalWebAdminUyeTablosuYenile();
+};
+
+async function githubUyeleriAnlikCek(zorla = false) {
+  const yerelCache = yerelUyeOnbellekOku();
+  if (!zorla && (Date.now() - sonUyeDegisiklikZamani < 45000) && yerelCache) {
+    VERI.uyeler = yerelCache.uyeler;
+    varsayilanAdminGarantiEt();
+    adminButonunuGuncelle();
+    return true;
+  }
+
   try {
     const cfg = VERI.gh_cfg;
     if (!cfg || !cfg.o || !cfg.r) return false;
-    const res = await ghApiIstek(`contents/omega_uyeler.json?ref=${cfg.b || 'main'}&t=${Date.now()}`, "GET");
+    const res = await ghApiIstek(`contents/omega_uyeler.json?ref=${cfg.b || 'main'}&_t=${Date.now()}`, "GET");
     if (res && res.ok) {
       const d = await res.json();
       if (d && d.content) {
         const parsed = JSON.parse(b64ToUtf8(d.content));
         if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
-          VERI.uyeler = parsed;
+          if (yerelCache && (Date.now() - yerelCache.ts < 60000) && sonBilinenUyeSha && d.sha !== sonBilinenUyeSha) {
+            VERI.uyeler = yerelCache.uyeler;
+          } else {
+            VERI.uyeler = parsed;
+            sonBilinenUyeSha = d.sha || sonBilinenUyeSha;
+            yerelUyeOnbellekKaydet(VERI.uyeler, sonBilinenUyeSha);
+          }
           varsayilanAdminGarantiEt();
           adminButonunuGuncelle();
+          if (adminPaneliSuAnAcikMi()) {
+            webAdminUyeTablosuYenile(false);
+          }
           return true;
         }
       }
     }
   } catch (e) {}
-  return false;
-}
 
-// GitHub'a anlık olarak omega_uyeler.json yazar (0.2 saniyede tamamlanır, boyut sınırına takılmaz!)
-async function githubUyeleriAnlikKaydet(commitMesaji) {
-  sonUyeDegisiklikZamani = Date.now();
-  const cfg = VERI.gh_cfg;
-  if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
-  const branch = cfg.b || "main";
-
-  for (let deneme = 0; deneme < 2; deneme++) {
-    try {
-      let sha = null;
-      const getRes = await ghApiIstek(`contents/omega_uyeler.json?ref=${branch}&t=${Date.now()}`, "GET");
-      if (getRes && getRes.ok) {
-        const getJson = await getRes.json();
-        sha = getJson.sha;
-      }
-      const body = {
-        message: commitMesaji || "Web Admin: Uye ve Yetki Guncellemesi",
-        content: utf8ToB64(JSON.stringify(VERI.uyeler, null, 2)),
-        branch: branch
-      };
-      if (sha) body.sha = sha;
-
-      const putRes = await ghApiIstek("contents/omega_uyeler.json", "PUT", body);
-      if (putRes && putRes.ok) {
-        // Arka planda ana JSON dosyasını da senkronize et
-        githubCanliVeriKaydet(commitMesaji).catch(() => {});
-        return true;
-      }
-    } catch (e) {}
-    await new Promise(r => setTimeout(r, 300));
+  if (yerelCache && yerelCache.uyeler) {
+    VERI.uyeler = yerelCache.uyeler;
+    varsayilanAdminGarantiEt();
+    adminButonunuGuncelle();
   }
   return false;
 }
 
-// Giriş kontrolünde her zaman güncel adminlik yetkisini çek
+async function githubUyeleriAnlikKaydet(commitMesaji) {
+  sonUyeDegisiklikZamani = Date.now();
+  yerelUyeOnbellekKaydet(VERI.uyeler, sonBilinenUyeSha);
+
+  const uyeStr = JSON.stringify(VERI.uyeler, null, 2);
+  const sonuc = await ghDosyaSiralikaydet("omega_uyeler.json", uyeStr, commitMesaji || "Web Admin: Uye ve Yetki Guncellemesi");
+  if (sonuc && sonuc.ok) {
+    if (sonuc.sha) sonBilinenUyeSha = sonuc.sha;
+    yerelUyeOnbellekKaydet(VERI.uyeler, sonBilinenUyeSha);
+    VERI.timestamp = Math.floor(Date.now() / 1000);
+    ghDosyaSiralikaydet("omega_canli_veri.json", JSON.stringify(VERI), commitMesaji + " (Ana Veri)").catch(() => {});
+    return true;
+  }
+  return false;
+}
+
+githubCanliVeriKaydet = async function(commitMesaji) {
+  const sonuc = await ghDosyaSiralikaydet("omega_canli_veri.json", JSON.stringify(VERI), commitMesaji || "OMEGA Otonom Web AI Guncellemesi");
+  return Boolean(sonuc && sonuc.ok);
+};
+
+tkinterLogGonder = function(kullanici, islem_detayi) {
+  ghYazmaKuyrugu = ghYazmaKuyrugu.then(async () => {
+    try {
+      const cfg = VERI.gh_cfg;
+      if (!cfg || !cfg.o || !cfg.r || !cfg.k) return;
+      const branch = cfg.b || "main";
+
+      let mevcutListe = [];
+      let sha = null;
+      const getRes = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${branch}&_t=${Date.now()}`, "GET");
+      if (getRes && getRes.ok) {
+        const getJson = await getRes.json();
+        sha = getJson.sha;
+        const parsed = JSON.parse(b64ToUtf8(getJson.content || ""));
+        if (Array.isArray(parsed)) mevcutListe = parsed;
+      }
+
+      const yeniKayit = {
+        tarih: new Date().toLocaleString("tr-TR"),
+        kullanici: kullanici,
+        ip: ziyaretciBilgisi.ip,
+        konum: ziyaretciBilgisi.konum,
+        isp: ziyaretciBilgisi.isp,
+        ekran: window.innerWidth + "x" + window.innerHeight,
+        cihaz: navigator.platform + " | " + navigator.userAgent.slice(0, 65),
+        islem: islem_detayi
+      };
+
+      mevcutListe.unshift(yeniKayit);
+      if (mevcutListe.length > 150) mevcutListe = mevcutListe.slice(0, 150);
+
+      const body = {
+        message: "Log: " + kullanici + " (" + ziyaretciBilgisi.ip + ")",
+        content: utf8ToB64(JSON.stringify(mevcutListe, null, 2)),
+        branch: branch
+      };
+      if (sha) body.sha = sha;
+      await ghApiIstek("contents/omega_ziyaretci_log.json", "PUT", body);
+    } catch (e) {}
+  }).catch(() => {});
+};
+
 girisKontrol = async function() {
   const uInput = document.getElementById("inp-user");
   const pInput = document.getElementById("inp-pass");
@@ -5871,8 +6636,7 @@ girisKontrol = async function() {
   errEl.style.color = "#38bdf8";
   errEl.textContent = "🔄 Üye ve Admin yetkileri doğrulanıyor...";
 
-  // Önce omega_uyeler.json üzerinden en güncel adminlik ve üye listesini çek
-  await githubUyeleriAnlikCek();
+  await githubUyeleriAnlikCek(true);
   varsayilanAdminGarantiEt();
 
   const girilenHash = koduHashle(p);
@@ -5881,6 +6645,7 @@ girisKontrol = async function() {
 
   if (!sifreEslesiyorMu(uye, p, girilenHash)) {
     await githubApiCanliVeriCek();
+    await githubUyeleriAnlikCek(true);
     gercekKullanici = kullaniciAnahtariBul(girilenAd);
     uye = gercekKullanici ? VERI.uyeler[gercekKullanici] : null;
   }
@@ -5905,29 +6670,87 @@ girisKontrol = async function() {
   oturumuAc(gercekKullanici);
 };
 
-// Canlı veri çekilirken CDN önbelleğindeki eski üye listesinin güncel admin yetkisini ezmesini engelle
-const _eskiCanliVeriCek = canliVeriCek;
+// 12 ve 15 saniyelik canlı veri çekimlerinde Admin Paneli açıksa ekranı sarsma ve üyeleri koru!
 canliVeriCek = async function(ekraniYenile = true) {
-  const yedekUyeler = JSON.parse(JSON.stringify(VERI.uyeler || {}));
-  await _eskiCanliVeriCek(ekraniYenile);
-  if (Date.now() - sonUyeDegisiklikZamani < 60000) {
-    VERI.uyeler = yedekUyeler;
-  }
-  await githubUyeleriAnlikCek();
+  const korunacakUyeler = JSON.parse(JSON.stringify(VERI.uyeler || {}));
+  try {
+    const ctrl = new AbortController();
+    const tId = setTimeout(() => ctrl.abort(), 3500);
+    const res = await fetch("omega_canli_veri.json?t=" + Date.now(), { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(tId);
+    if (res.ok) {
+      const yeniVeri = await res.json();
+      if (yeniVeri && yeniVeri.maclar && yeniVeri.maclar.length > 0) {
+        if (
+          yeniVeri.timestamp > sonPcTimestamp ||
+          yeniVeri.canli_mod !== VERI.canli_mod ||
+          yeniVeri.auto_web !== VERI.auto_web
+        ) {
+          sonPcTimestamp = yeniVeri.timestamp || sonPcTimestamp;
+          if (yeniVeri.canli_mod) sonPcCanliZaman = Date.now();
+          VERI.maclar = yeniVeri.maclar;
+          VERI.guncelleme_tarihi = yeniVeri.guncelleme_tarihi || VERI.guncelleme_tarihi;
+          VERI.timestamp = yeniVeri.timestamp || VERI.timestamp;
+          VERI.canli_mod = yeniVeri.canli_mod;
+          VERI.auto_web = yeniVeri.auto_web;
+          if (yeniVeri.takim_profilleri) VERI.takim_profilleri = yeniVeri.takim_profilleri;
+        }
+      }
+    }
+  } catch (e) {}
+
+  VERI.uyeler = korunacakUyeler;
+  await githubUyeleriAnlikCek(false);
   adminButonunuGuncelle();
+
+  // Admin paneli açıkken arka plandaki ana ekran tablosunu yeniden çizip odak kaybı yaratma
+  if (ekraniYenile && oturumDegeriAl("omega_user") && !adminPaneliSuAnAcikMi()) {
+    ustDurumRozetiGuncelle();
+    bultenTablosunuYenile();
+  }
 };
 
-// Admin Paneli Açma, Üye Ekleme, Admin Tiki Verme/Alma, Üye Silme ve Log Okuma
+// 15 saniyelik otonom adımda Admin Paneli açıksa DOM'u sarsmadan sessizce hesapla
+const _eskiAutoWeb15sAdim = autoWeb15sOtonomAdim;
+autoWeb15sOtonomAdim = function() {
+  if (adminPaneliSuAnAcikMi()) {
+    return;
+  }
+  _eskiAutoWeb15sAdim();
+};
+
 modalAdminAc = async function() {
-  await githubUyeleriAnlikCek();
+  adminPaneliKullaniciAcikTutuyor = true;
+  adminMobilYapiyiHazirla();
+  const overlay = document.getElementById("modal-admin-overlay");
+  if (overlay) overlay.style.display = "flex";
+  adminMobilSekmeUygula();
+  webAdminUyeTablosuYenile(true);
+
+  await githubUyeleriAnlikCek(true);
   const aktifUser = oturumDegeriAl("omega_user");
   if (!kullaniciAdminMi(aktifUser)) {
+    adminPaneliKullaniciAcikTutuyor = false;
+    if (overlay) overlay.style.display = "none";
     alert("Bu panele erişim için Admin yetkisine sahip olmanız gerekir!");
     return;
   }
-  document.getElementById("modal-admin-overlay").style.display = "flex";
-  webAdminUyeTablosuYenile();
+  webAdminUyeTablosuYenile(true);
   webAdminLoglariYenile();
+};
+
+// Sadece kullanıcı X KAPAT tuşuna bastığında (veya çıkış yaptığında) kapanır!
+modalAdminKapat = function(kullaniciKapatti = false) {
+  const stack = (new Error().stack || "");
+  const cikisMi = stack.includes("cikisYap");
+  if (!kullaniciKapatti && !cikisMi && adminPaneliKullaniciAcikTutuyor) {
+    return;
+  }
+  adminPaneliKullaniciAcikTutuyor = false;
+  const el = document.getElementById("modal-admin-overlay");
+  if (el) el.style.display = "none";
+  ustDurumRozetiGuncelle();
+  bultenTablosunuYenile();
 };
 
 webAdminUyeEkle = async function() {
@@ -5949,9 +6772,10 @@ webAdminUyeEkle = async function() {
   }
 
   msgEl.style.color = "#38bdf8";
-  msgEl.textContent = `⏳ '${uAdi}' kaydediliyor ve senkronize ediliyor...`;
+  msgEl.textContent = `⏳ '${uAdi}' kaydediliyor ve tüm cihazlara senkronize ediliyor...`;
 
-  VERI.uyeler[uAdi] = {
+  const mevcutAnahtar = kullaniciAnahtariBul(uAdi) || uAdi;
+  VERI.uyeler[mevcutAnahtar] = {
     sifre_hash: koduHashle(sifre),
     sifre_maskeli: tokenGizle(sifre),
     admin_mi: Boolean(yeniAdminMi),
@@ -5962,15 +6786,15 @@ webAdminUyeEkle = async function() {
   document.getElementById("adm-yeni-user").value = "";
   document.getElementById("adm-yeni-pass").value = "";
   document.getElementById("adm-yeni-yetki").checked = false;
-  webAdminUyeTablosuYenile();
+  webAdminUyeTablosuYenile(true);
 
-  const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): Yeni Uye Eklendi (${uAdi})`);
-  tkinterLogGonder(aktifAdmin, `👑 Web Admin Panelinden Üye Ekledi: ${uAdi} (${yeniAdminMi ? 'Admin' : 'Üye'})`);
+  const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): Yeni Uye Eklendi (${mevcutAnahtar})`);
+  tkinterLogGonder(aktifAdmin, `👑 Web Admin Panelinden Üye Ekledi: ${mevcutAnahtar} (${yeniAdminMi ? 'Admin' : 'Üye'})`);
 
-  msgEl.style.color = "#4ade80";
+  msgEl.style.color = ok ? "#4ade80" : "#fbbf24";
   msgEl.textContent = ok
-    ? `✅ '${uAdi}' (${yeniAdminMi ? '👑 Admin' : '👤 Üye'}) başarıyla kaydedildi ve tüm cihazlarda aktif edildi!`
-    : `✅ '${uAdi}' kaydedildi (GitHub Token kontrol edin).`;
+    ? `✅ '${mevcutAnahtar}' (${yeniAdminMi ? '👑 Admin' : '👤 Üye'}) başarıyla kaydedildi! Uygulama ve Web'de anında aktif.`
+    : `⚠️ '${mevcutAnahtar}' tarayıcıya kaydedildi (GitHub Token yetkisini kontrol edin).`;
 };
 
 webAdminYetkiDegistir = async function(hedefKullanici, yeniDurum) {
@@ -5983,7 +6807,7 @@ webAdminYetkiDegistir = async function(hedefKullanici, yeniDurum) {
     const adminSayisi = Object.values(VERI.uyeler).filter(u => u.admin_mi).length;
     if (adminSayisi <= 1 && VERI.uyeler[gercekHedef] && VERI.uyeler[gercekHedef].admin_mi) {
       alert("Sistemde en az 1 Admin kalmak zorundadır! Son adminin yetkisi kaldırılamaz.");
-      webAdminUyeTablosuYenile();
+      webAdminUyeTablosuYenile(true);
       return;
     }
   }
@@ -5993,7 +6817,7 @@ webAdminYetkiDegistir = async function(hedefKullanici, yeniDurum) {
     VERI.timestamp = Math.floor(Date.now() / 1000);
     msgEl.style.color = "#38bdf8";
     msgEl.textContent = `⏳ '${gercekHedef}' yetkisi güncelleniyor...`;
-    webAdminUyeTablosuYenile();
+    webAdminUyeTablosuYenile(true);
 
     const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): ${gercekHedef} Admin=${yeniDurum}`);
     adminButonunuGuncelle();
@@ -6024,27 +6848,29 @@ webAdminUyeSil = async function(hedefKullanici) {
   VERI.timestamp = Math.floor(Date.now() / 1000);
   msgEl.style.color = "#38bdf8";
   msgEl.textContent = `⏳ '${gercekHedef}' siliniyor...`;
-  webAdminUyeTablosuYenile();
+  webAdminUyeTablosuYenile(true);
 
   const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): Uye Silindi (${gercekHedef})`);
   tkinterLogGonder(aktifAdmin, `🗑️ Web Admin Panelinden Üye Sildi: ${gercekHedef}`);
 
   msgEl.style.color = "#4ade80";
   msgEl.textContent = ok
-    ? `🗑️ '${gercekHedef}' silindi ve siteye erişimi anında kapatıldı.`
+    ? `🗑️ '${gercekHedef}' silindi ve tüm cihazlardan erişimi anında kapatıldı.`
     : `🗑️ '${gercekHedef}' silindi.`;
 };
 
 webAdminLoglariYenile = async function() {
   const tbody = document.getElementById("adm-log-tbody");
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#38bdf8;">📡 Canlı IP Logları GitHub API\'den çekiliyor...</td></tr>';
+  if (tbody.children.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#38bdf8;">📡 Canlı IP Logları çekiliyor...</td></tr>';
+  }
 
   let logListesi = [];
   try {
     const cfg = VERI.gh_cfg;
     if (cfg && cfg.o && cfg.r) {
-      const res = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${cfg.b || 'main'}&t=${Date.now()}`, "GET");
+      const res = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${cfg.b || 'main'}&_t=${Date.now()}`, "GET");
       if (res && res.ok) {
         const d = await res.json();
         if (d && d.content) {
@@ -6084,27 +6910,14 @@ webAdminLoglariYenile = async function() {
 webAdminLoglariTemizle = async function() {
   const aktifAdmin = oturumDegeriAl("omega_user");
   if (!kullaniciAdminMi(aktifAdmin)) return;
-  try {
-    const cfg = VERI.gh_cfg;
-    const branch = (cfg && cfg.b) ? cfg.b : "main";
-    let sha = null;
-    const getRes = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${branch}&t=${Date.now()}`, "GET");
-    if (getRes && getRes.ok) {
-      const getJson = await getRes.json();
-      sha = getJson.sha;
-    }
-    const body = { message: `Web Admin (${aktifAdmin}): Loglar temizlendi`, content: utf8ToB64("[]"), branch: branch };
-    if (sha) body.sha = sha;
-    await ghApiIstek("contents/omega_ziyaretci_log.json", "PUT", body);
-    webAdminLoglariYenile();
-  } catch (e) {}
+  await ghDosyaSiralikaydet("omega_ziyaretci_log.json", "[]", `Web Admin (${aktifAdmin}): Loglar temizlendi`);
+  webAdminLoglariYenile();
 };
 
 // ==================== 18 SİSTEMLİ ULTRA-ZEKİ GÖMÜLÜ YAPAY ZEKA KUPON MOTORU ====================
 webAkilliKuponOlustur = function(modalGoster = true) {
   if (!VERI.maclar || VERI.maclar.length === 0) return;
 
-  // Kupon oluşturmadan hemen önce tüm maçları gömülü 18 Yapay Zeka + 13 İstatistik motorundan geçir!
   VERI.maclar.forEach(m => omegaWebTamMacHesapla(m));
 
   const risk = document.getElementById("sel-kupon-risk").value;
@@ -6126,7 +6939,6 @@ webAkilliKuponOlustur = function(modalGoster = true) {
     const guvenGenel = m.guven_skoru || 78.0;
     const bireyselModeller = m.bireysel_ai || [];
 
-    // 18 Sistemin Taraf (MS1 / MSX / MS2) Mutabakat Sayımı
     let oyMs1 = 0, oyMsx = 0, oyMs2 = 0;
     bireyselModeller.forEach(bm => {
       if (bm.fav === "MS 1") oyMs1++;
@@ -6142,7 +6954,6 @@ webAkilliKuponOlustur = function(modalGoster = true) {
     if (m.piyasa_ortak[2] >= m.piyasa_ortak[1] && m.piyasa_ortak[2] >= m.piyasa_ortak[0]) oyMs1++;
     else if (m.piyasa_ortak[1] >= m.piyasa_ortak[0]) oyMsx++; else oyMs2++;
 
-    // 4 Senaryo Monte Carlo Dayanıklılık Analizi
     const senaryoDegerleri = Object.values(m.senaryolar || {});
     const senaryoMs1Min = senaryoDegerleri.length ? Math.min(...senaryoDegerleri.map(s => s[0])) : m.nihai[2];
     const senaryoMs2Min = senaryoDegerleri.length ? Math.min(...senaryoDegerleri.map(s => s[2])) : m.nihai[0];
@@ -6156,10 +6967,9 @@ webAkilliKuponOlustur = function(modalGoster = true) {
     const puanliMarketler = tumMarketler.map(mk => {
       const iht = mk.ihtimal;
       const oran = mk.oran;
-      const evDegeri = (iht / 100.0) * oran; // Matematiksel Beklenen Değer (EV)
+      const evDegeri = (iht / 100.0) * oran;
       const kellyAvantaji = Math.max(0, ((evDegeri - 1.0) / Math.max(oran - 1.0, 0.15)) * 100.0);
 
-      // Market bazlı 18 veya 13 Sistem Onay Sayısı ve Sapma Hesabı
       let sistemOnayMetni = "";
       let mutabakatOrani = 0.75;
       let marketSapma = sapmaGenel;
@@ -6186,7 +6996,6 @@ webAkilliKuponOlustur = function(modalGoster = true) {
         sistemOnayMetni = `18+13 AI Konsensüsü (Güven: %${guvenGenel.toFixed(1)})`;
       }
 
-      // 18 SİSTEMLİ OMEGA ZEKA PUANI FORMÜLÜ
       let zekaPuani = 0.0;
       let neden = "";
 
@@ -6237,7 +7046,6 @@ webAkilliKuponOlustur = function(modalGoster = true) {
   macAdayListesi.sort((a, b) => b.enIyiPuan - a.enIyiPuan);
   const secilenMacAdaylari = macAdayListesi.slice(0, macAdet);
 
-  // Kupon İçi Çapraz Market Çeşitlendirme (Aynı marketin tekrarı yerine her maça en uygun farklı market)
   const kategoriSayaci = {};
   const kuponMaclari = secilenMacAdaylari.map(aday => {
     let secilenMk = aday.marketAdaylari[0];
@@ -6335,11 +7143,13 @@ async function tamWebYenilemeCalistir(manuelMi = true) {
   }
 
   try {
-    await githubUyeleriAnlikCek();
+    await githubUyeleriAnlikCek(false);
     await githubBulutPythonTetikle();
     await webtenYeniBultenVeCSVIndir(manuelMi);
-    await canliVeriCek(true);
-    webAkilliKuponOlustur(false);
+    await canliVeriCek(!adminPaneliSuAnAcikMi());
+    if (!adminPaneliSuAnAcikMi()) {
+      webAkilliKuponOlustur(false);
+    }
   } catch (e) {}
 
   if (btnYenile) {
@@ -6350,7 +7160,9 @@ async function tamWebYenilemeCalistir(manuelMi = true) {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  // Üst bara '🔄 Şimdi Yenile (5dk AI)' butonunu otomatik yerleştir
+  adminMobilYapiyiHazirla();
+  githubUyeleriAnlikCek(false);
+
   const topbarRight = document.querySelector(".topbar-right");
   const sayacBadge = document.getElementById("autoweb-sayac-badge");
   if (topbarRight && !document.getElementById("btn-manuel-5dk-yenile")) {
@@ -6369,14 +7181,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Her 1 saniyede bir 5 dakikalık (300s) sayacı işlet ve süre dolunca otomatik yenile
 setInterval(async () => {
   const aktifUser = oturumDegeriAl("omega_user");
   if (!aktifUser) return;
 
-  // Her 10 saniyede bir adminlik ve üye değişikliklerini arka planda kontrol et
-  if (besDakikaSayaci % 10 === 0) {
-    githubUyeleriAnlikCek();
+  if (besDakikaSayaci % 6 === 0) {
+    // Kullanıcı yeni üye/şifre kutusuna yazı yazıyorsa arka plan senkronizasyonuyla odak bozma
+    const aktifEl = document.activeElement ? document.activeElement.id : "";
+    if (aktifEl !== "adm-yeni-user" && aktifEl !== "adm-yeni-pass") {
+      await githubUyeleriAnlikCek(false);
+    }
   }
 
   if (!VERI.auto_web && !VERI.canli_mod) {
@@ -6393,10 +7207,10 @@ setInterval(async () => {
 
   if (besDakikaSayaci <= 0) {
     besDakikaSayaci = 300;
-    if (!pcSuAnAktifMi()) {
+    if (!pcSuAnAktifMi() && !adminPaneliSuAnAcikMi()) {
       await tamWebYenilemeCalistir(false);
     } else {
-      await canliVeriCek(true);
+      await canliVeriCek(!adminPaneliSuAnAcikMi());
     }
   }
 }, 1000);
@@ -6404,46 +7218,10 @@ setInterval(async () => {
 
     def gelismis_html_uret(payload: dict) -> str:
         ham_html = orijinal_html_uret(payload)
-        return ham_html.replace("</script>\n</body>", ek_yama_js_kodu + "\n</body>")
-
-    def gelismis_paket_gonder(
-        self, veri_motoru, ai_motoru, secili_mac_ozeti,
-        son_3tik_mac_baslik="", canli_yayin_aktif=True, auto_web_aktif=True,
-        sadece_json=False, durum_callback=None
-    ):
-        ok = orijinal_paket_gonder(
-            self, veri_motoru, ai_motoru, secili_mac_ozeti,
-            son_3tik_mac_baslik=son_3tik_mac_baslik,
-            canli_yayin_aktif=canli_yayin_aktif,
-            auto_web_aktif=auto_web_aktif,
-            sadece_json=sadece_json,
-            durum_callback=durum_callback
-        )
-        if self.github_ayarlari_tam_mi():
-            try:
-                uye_sozluk = self._web_uye_sozlugu_hazirla()
-                self._github_dosya_uzerine_yaz(
-                    "omega_uyeler.json",
-                    json.dumps(uye_sozluk, ensure_ascii=False, indent=2),
-                    "OMEGA Uye ve Admin Yetki Listesi"
-                )
-                if not sadece_json:
-                    if os.path.exists(__file__):
-                        with open(__file__, "r", encoding="utf-8") as f:
-                            bu_dosya_kodu = f.read()
-                        self._github_dosya_uzerine_yaz(
-                            "omega_bulut_motoru.py", bu_dosya_kodu, "OMEGA 18+13 AI Tam Python Bulut Motoru"
-                        )
-                    yaml_icerik = _github_actions_yaml_uret()
-                    self._github_dosya_uzerine_yaz(
-                        ".github/workflows/omega_otonom_ai.yml", yaml_icerik, "OMEGA 5dk Otonom GitHub Actions Kurulumu"
-                    )
-            except Exception:
-                pass
-        return ok
+        return ham_html.replace("</script>\n</body>", "</script>\n" + ek_yama_js_kodu + "\n</body>")
 
     UyeVeGitHubYoneticisi._interaktif_html_uret = staticmethod(gelismis_html_uret)
-    UyeVeGitHubYoneticisi.web_paketi_olustur_ve_gonder = gelismis_paket_gonder
+    UyeVeGitHubYoneticisi.web_paketi_olustur_ve_gonder = _guvenli_web_paketi_olustur_ve_gonder
 
 
 _omega_otonom_bulut_sistemi_bagla()
@@ -6462,7 +7240,6 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         except Exception:
             mevcut_veri = {}
 
-    # Web Admin panelinden değiştirilen güncel üyeleri oku ve koru
     guncel_uyeler = mevcut_veri.get("uyeler", {})
     if os.path.exists("omega_uyeler.json"):
         try:
