@@ -26,7 +26,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y python3-tk
           pip install numpy pandas scipy scikit-learn
 
-      - name: 14 Lig Verisini Cek ve 18+13 Yapay Zekayi Egit (Auto-Web Kontrollu)
+      - name: 20 Lig Gercek Fiksturunu Cek ve 18+13 Yapay Zekayi Egit (Auto-Web Kontrollu)
         run: python omega_bulut_motoru.py --bulut-calistir
 
       - name: Guncel Tahminleri Canli Veriye Kaydet
@@ -35,5 +35,5 @@ jobs:
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
           git add omega_canli_veri.json omega_uyeler.json || true
-          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: 14 Lig + 18 AI Otonom Guncelleme"
+          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: Gercek Fikstur + 18 AI Otonom Guncelleme"
           git push || true
