@@ -28,5 +28,11 @@
     "sifre_maskeli": "626d7032312c2d",
     "admin_mi": false,
     "kayit_tarihi": "17.10.2026 23:00"
+  },
+  "Matuhan": {
+    "sifre_hash": "7c88f4bc",
+    "sifre_maskeli": "32312c02",
+    "admin_mi": false,
+    "kayit_tarihi": "17.10.2026 23:26"
   }
 }
