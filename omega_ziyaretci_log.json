@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "17.10.2026 23:29:34",
+    "kullanici": "Matuhan",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🗑️ Üye Kaydı Silindi (Tkinter)"
+  },
+  {
     "tarih": "17.10.2026 23:29:28",
     "kullanici": "arda",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1462,15 +1471,5 @@
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "Çıkış Yaptı / Oturum Kapatıldı"
-  },
-  {
-    "tarih": "17.10.2026 02:31:41",
-    "kullanici": "umit",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x705",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Özel Maç Analizi: Eyüpspor vs Liverpool"
   }
 ]
