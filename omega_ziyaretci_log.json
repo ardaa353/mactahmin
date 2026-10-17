@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "18.10.2026 02:18:29",
+    "kullanici": "arda",
+    "ip": "5.24.227.253",
+    "konum": "Ankara / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x695",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "🔥 13'lü İstatistik Penceresini Açtı: Velez Sarsfield - Gimnasia Mendoza"
+  },
+  {
     "tarih": "18.10.2026 02:18:27",
     "kullanici": "arda",
     "ip": "5.24.227.253",
@@ -1449,15 +1459,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🚀 OMEGA Quantum AI v3.0 Ana Motoru Başlatıldı"
-  },
-  {
-    "tarih": "17.10.2026 04:49:27",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "200.162.146.2",
-    "konum": "Minsk / Belarus",
-    "isp": "Clouvider Limited",
-    "ekran": "1280x1024",
-    "cihaz": "Win32 | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT",
-    "islem": "Giriş Ekranını Açtı"
   }
 ]
