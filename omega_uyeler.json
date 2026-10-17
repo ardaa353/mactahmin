@@ -26,7 +26,7 @@
   "batu": {
     "sifre_hash": "66435e27",
     "sifre_maskeli": "626d7032312c2d",
-    "admin_mi": false,
+    "admin_mi": true,
     "kayit_tarihi": "17.10.2026 23:00"
   }
 }
