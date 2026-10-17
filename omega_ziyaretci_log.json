@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "17.10.2026 23:22:20",
+    "kullanici": "batu",
+    "ip": "5.24.227.253",
+    "konum": "Ankara / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x695",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "👑 Web Admin: 'batu' Adminlik Tiki -> KAPATILDI"
+  },
+  {
     "tarih": "17.10.2026 23:21:23",
     "kullanici": "batu",
     "ip": "5.24.227.253",
@@ -1461,14 +1471,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "✅ Yeni Üye Kaydı Oluşturuldu (Tkinter)"
-  },
-  {
-    "tarih": "17.10.2026 02:21:45",
-    "kullanici": "Yönetici (Admin)",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "🚀 OMEGA Quantum AI v2.0 Ana Motoru Başlatıldı"
   }
 ]
