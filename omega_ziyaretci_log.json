@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "17.10.2026 22:33:52",
+    "kullanici": "admin",
+    "ip": "5.24.227.253",
+    "konum": "Ankara / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "1470x764",
+    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
+    "islem": "✅ Siteye Başarılı Giriş Yaptı"
+  },
+  {
     "tarih": "17.10.2026 22:33:45",
     "kullanici": "arda",
     "ip": "5.24.227.253",
@@ -1461,14 +1471,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 1.00)"
-  },
-  {
-    "tarih": "17.10.2026 02:37:05",
-    "kullanici": "Yönetici (Admin)",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "🔥 3-Tık 13'lü İstatistik Penceresi Açıldı: Chelsea - Arsenal"
   }
 ]
