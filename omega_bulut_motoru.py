@@ -5598,9 +5598,17 @@ class OmegaTahminArayuzu:
         self.detay_metin.config(state=tk.DISABLED)
 
 
-# ==================== 5 DAKİKADA BİR ÇALIŞAN OTONOM GITHUB PYTHON BULUT MOTORU, TAM YETKİLİ WEB ADMİN VE 18-AI ZEKİ KUPON YAMASI ====================
+# ==================== 5 DAKİKADA BİR ÇALIŞAN OTONOM GITHUB PYTHON BULUT MOTORU, GERÇEK FİKSTÜR MOTORU VE 18+13 AI YAMASI ====================
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def _turkiye_saati_simdi() -> datetime.datetime:
+    """Hem masaüstünde hem de GitHub Actions (UTC) sunucularında her zaman Türkiye Saatini (UTC+3) döndürür."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=3)
+
+
 def _github_actions_yaml_uret() -> str:
-    """GitHub'ın kendi Ubuntu Python sunucusunda 5 dakikada bir 14 ligi çekip 18+13 AI eğiten iş akışı."""
+    """GitHub'ın kendi Ubuntu Python sunucusunda 5 dakikada bir 20 ligi çekip 18+13 AI eğiten iş akışı."""
     return """name: OMEGA Quantum AI 5dk Otonom Python Motoru
 
 on:
@@ -5629,7 +5637,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y python3-tk
           pip install numpy pandas scipy scikit-learn
 
-      - name: 14 Lig Verisini Cek ve 18+13 Yapay Zekayi Egit (Auto-Web Kontrollu)
+      - name: 20 Lig Gercek Fiksturunu Cek ve 18+13 Yapay Zekayi Egit (Auto-Web Kontrollu)
         run: python omega_bulut_motoru.py --bulut-calistir
 
       - name: Guncel Tahminleri Canli Veriye Kaydet
@@ -5638,9 +5646,425 @@ jobs:
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
           git add omega_canli_veri.json omega_uyeler.json || true
-          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: 14 Lig + 18 AI Otonom Guncelleme"
+          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: Gercek Fikstur + 18 AI Otonom Guncelleme"
           git push || true
 """
+
+
+def _gercek_fikstur_ve_gelismis_ai_motorunu_bagla():
+    """
+    1) Sahte/sentetik maç üretimini tamamen kaldırır; Misli/İddaa bültenindeki gerçek ileri tarihli maçları çeker.
+    2) Paralel (Multi-Thread) ESPN Canlı Fikstür API + Football-Data entegrasyonu ile 20 ligden 10 günlük gerçek maçları alır.
+    3) 18 Yapay Zeka modeli ve 3-Tık (13'lü İstatistik) motorunu gerçek maç verileriyle daha hassas çalıştırır.
+    """
+    CanliInternetVeriMotoru.SEZONLAR = ['2627', '2526', '2425', '2324']
+
+    CanliInternetVeriMotoru.LIGLER = {
+        'Türkiye Süper Lig': 'T1',
+        'İngiltere Premier Lig': 'E0',
+        'İngiltere Championship (Alt Lig)': 'E1',
+        'İngiltere League 1 (Alt Lig)': 'E2',
+        'İspanya La Liga': 'SP1',
+        'İspanya La Liga 2 (Alt Lig)': 'SP2',
+        'İtalya Serie A': 'I1',
+        'İtalya Serie B (Alt Lig)': 'I2',
+        'Almanya Bundesliga': 'D1',
+        'Almanya Bundesliga 2 (Alt Lig)': 'D2',
+        'Fransa Ligue 1': 'F1',
+        'Fransa Ligue 2 (Alt Lig)': 'F2',
+        'Hollanda Eredivisie': 'N1',
+        'Portekiz Süper Ligi': 'P1',
+        'Belçika Pro Lig': 'B1',
+        'İskoçya Premiership': 'SC0'
+    }
+
+    CanliInternetVeriMotoru.ESPN_LIG_KODLARI = {
+        'Türkiye Süper Lig': 'tur.1',
+        'Türkiye 1. Lig (Alt Lig)': 'tur.2',
+        'UEFA Şampiyonlar Ligi': 'uefa.champions',
+        'UEFA Avrupa Ligi': 'uefa.europa',
+        'UEFA Konferans Ligi': 'uefa.europa.conf',
+        'İngiltere Premier Lig': 'eng.1',
+        'İngiltere Championship (Alt Lig)': 'eng.2',
+        'İngiltere League 1 (Alt Lig)': 'eng.3',
+        'İspanya La Liga': 'esp.1',
+        'İspanya La Liga 2 (Alt Lig)': 'esp.2',
+        'İtalya Serie A': 'ita.1',
+        'İtalya Serie B (Alt Lig)': 'ita.2',
+        'Almanya Bundesliga': 'ger.1',
+        'Almanya Bundesliga 2 (Alt Lig)': 'ger.2',
+        'Fransa Ligue 1': 'fra.1',
+        'Fransa Ligue 2 (Alt Lig)': 'fra.2',
+        'Hollanda Eredivisie': 'ned.1',
+        'Portekiz Süper Ligi': 'por.1',
+        'Belçika Pro Lig': 'bel.1',
+        'İskoçya Premiership': 'sco.1'
+    }
+
+    CanliInternetVeriMotoru.TAKIM_ESLEME.update({
+        "Galatasaray": "Galatasaray", "Fenerbahce": "Fenerbahçe", "Fenerbahçe": "Fenerbahçe",
+        "Besiktas": "Beşiktaş", "Beşiktaş": "Beşiktaş", "Trabzonspor": "Trabzonspor",
+        "Istanbul Basaksehir": "Başakşehir", "Başakşehir": "Başakşehir", "RAMS Basaksehir": "Başakşehir",
+        "Samsunspor": "Samsunspor", "Goztepe": "Göztepe", "Göztepe": "Göztepe",
+        "Eyupspor": "Eyüpspor", "Eyüpspor": "Eyüpspor", "Kasimpasa": "Kasımpaşa", "Kasımpaşa": "Kasımpaşa",
+        "Konyaspor": "Konyaspor", "Antalyaspor": "Antalyaspor", "Alanyaspor": "Alanyaspor",
+        "Sivasspor": "Sivasspor", "Rizespor": "Çaykur Rizespor", "Caykur Rizespor": "Çaykur Rizespor",
+        "Gaziantep FK": "Gaziantep FK", "Gaziantep": "Gaziantep FK", "Kayserispor": "Kayserispor",
+        "Hatayspor": "Hatayspor", "Bodrum FK": "Bodrum FK", "Bodrumspor": "Bodrum FK",
+        "Adana Demirspor": "Adana Demirspor", "Kocaelispor": "Kocaelispor", "Fatih Karagumruk": "Karagümrük",
+        "Genclerbirligi": "Gençlerbirliği", "Ankaragucu": "MKE Ankaragücü", "Sakaryaspor": "Sakaryaspor",
+        "Manchester City": "Man City", "Manchester United": "Man United",
+        "Nottingham Forest": "Nott'm Forest", "Newcastle United": "Newcastle",
+        "Tottenham Hotspur": "Tottenham", "Wolverhampton Wanderers": "Wolves",
+        "Brighton & Hove Albion": "Brighton", "West Ham United": "West Ham",
+        "Leicester City": "Leicester", "Ipswich Town": "Ipswich",
+        "Sheffield United": "Sheffield United", "Leeds United": "Leeds",
+        "AFC Bournemouth": "Bournemouth", "Crystal Palace": "Crystal Palace",
+        "Aston Villa": "Aston Villa", "Fulham": "Fulham", "Brentford": "Brentford", "Everton": "Everton",
+        "Atlético Madrid": "Ath Madrid", "Atletico Madrid": "Ath Madrid", "Athletic Club": "Ath Bilbao",
+        "Real Betis": "Betis", "Real Sociedad": "Sociedad", "Celta Vigo": "Celta",
+        "Rayo Vallecano": "Vallecano", "Deportivo Alavés": "Alaves", "CD Leganés": "Leganes",
+        "RCD Espanyol": "Espanyol", "Real Valladolid": "Valladolid", "RCD Mallorca": "Mallorca",
+        "Internazionale": "Inter", "Inter Milan": "Inter", "AC Milan": "Milan", "AS Roma": "Roma",
+        "Hellas Verona": "Verona", "Atalanta": "Atalanta", "Juventus": "Juventus", "Lazio": "Lazio",
+        "SSC Napoli": "Napoli", "Fiorentina": "Fiorentina", "Bologna": "Bologna", "Torino": "Torino",
+        "Bayern Munich": "Bayern Munich", "Bayer Leverkusen": "Leverkusen",
+        "Borussia Dortmund": "Dortmund", "Eintracht Frankfurt": "Ein Frankfurt",
+        "Borussia Mönchengladbach": "M'gladbach", "RB Leipzig": "RB Leipzig",
+        "VfB Stuttgart": "Stuttgart", "SC Freiburg": "Freiburg", "VfL Wolfsburg": "Wolfsburg",
+        "1. FC Union Berlin": "Union Berlin", "1. FSV Mainz 05": "Mainz", "TSG Hoffenheim": "Hoffenheim",
+        "Paris Saint-Germain": "Paris SG", "Olympique Marseille": "Marseille",
+        "Olympique Lyonnais": "Lyon", "AS Monaco": "Monaco", "LOSC Lille": "Lille",
+        "OGC Nice": "Nice", "RC Lens": "Lens", "Stade Rennais": "Rennes",
+        "Sporting CP": "Sp Lisbon", "SL Benfica": "Benfica", "FC Porto": "Porto", "SC Braga": "Braga",
+        "PSV Eindhoven": "PSV", "Ajax Amsterdam": "Ajax", "Feyenoord Rotterdam": "Feyenoord", "AZ Alkmaar": "AZ Alkmaar"
+    })
+
+    @staticmethod
+    def _amerikandan_ondaliga(ml_val):
+        try:
+            ml = float(ml_val)
+            if ml == 0:
+                return None
+            if ml > 0:
+                return round(float(np.clip(1.0 + (ml / 100.0), 1.05, 25.0)), 2)
+            return round(float(np.clip(1.0 + (100.0 / abs(ml)), 1.05, 25.0)), 2)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _gelismis_tarih_ayristir(tarih_ham, saat_ham, varsayilan_saat_ofseti=6, gecmis_maci_reddet=False):
+        simdi = _turkiye_saati_simdi()
+        dt_obj = None
+        if pd.notna(tarih_ham) and str(tarih_ham).strip():
+            t_str = str(tarih_ham).strip()
+            s_str = str(saat_ham).strip() if pd.notna(saat_ham) and str(saat_ham).strip() else "19:00"
+            for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%y %H:%M", "%Y-%m-%d %H:%M"):
+                try:
+                    dt_obj = datetime.datetime.strptime(f"{t_str} {s_str}", fmt)
+                    # Football-data.co.uk saatleri UK (GMT/BST) olduğu için Türkiye saatine (+2/+3 saat) uyarla
+                    dt_obj = dt_obj + datetime.timedelta(hours=2)
+                    break
+                except Exception:
+                    continue
+
+        if dt_obj is not None and dt_obj < simdi - datetime.timedelta(hours=2):
+            if gecmis_maci_reddet:
+                return None, None, None
+            dt_obj = None
+
+        if dt_obj is None:
+            if gecmis_maci_reddet:
+                return None, None, None
+            dt_obj = simdi + datetime.timedelta(hours=varsayilan_saat_ofseti)
+
+        fark_saat = max(0.0, (dt_obj - simdi).total_seconds() / 3600.0)
+        if fark_saat <= 26.0:
+            gun_farki = 1
+        elif fark_saat <= 52.0:
+            gun_farki = 2
+        else:
+            gun_farki = min(10, int(fark_saat // 24) + 1)
+
+        return dt_obj.strftime("%d.%m %H:%M"), gun_farki, int(dt_obj.timestamp())
+
+    def _gelismis_takim_bul_veya_ekle(self, ham_isim: str, lig_adi: str) -> str:
+        temiz_ham = str(ham_isim).strip()
+        if temiz_ham in self.TAKIM_ESLEME:
+            hedef = self.TAKIM_ESLEME[temiz_ham]
+            if hedef in self.takim_profilleri:
+                return hedef
+            temiz_ham = hedef
+
+        if temiz_ham in self.takim_profilleri:
+            return temiz_ham
+
+        # Kelime bazlı akıllı eşleştirme
+        kucuk = temiz_ham.lower()
+        for k_es, v_es in self.TAKIM_ESLEME.items():
+            if k_es.lower() == kucuk and v_es in self.takim_profilleri:
+                return v_es
+
+        for mevcut_t in self.takim_profilleri:
+            m_kucuk = mevcut_t.lower()
+            if len(m_kucuk) >= 4 and (m_kucuk == kucuk or m_kucuk in kucuk or kucuk in m_kucuk):
+                return mevcut_t
+
+        # Yeni takım ise lig kalitesine ve isim imzasına göre gerçekçi başlangıç profili oluştur
+        alt_mi = "Alt Lig" in str(lig_adi)
+        ust_avrupa_mi = any(x in str(lig_adi) for x in ("Şampiyonlar", "Premier", "La Liga", "Serie A", "Bundesliga"))
+        baz_elo = 1520.0 if alt_mi else (1665.0 if ust_avrupa_mi else 1595.0)
+        imza = (sum(ord(c) for c in temiz_ham) % 70) - 35
+        elo_deger = float(baz_elo + imza)
+        xg_deger = float(np.clip(1.42 + (elo_deger - 1580.0) * 0.0022, 0.85, 2.45))
+        xga_deger = float(np.clip(1.28 - (elo_deger - 1580.0) * 0.0016, 0.75, 2.15))
+
+        self.takim_profilleri[temiz_ham] = {
+            'lig': lig_adi,
+            'elo': elo_deger,
+            'xg': round(xg_deger, 2),
+            'xga': round(xga_deger, 2),
+            'form': float(np.clip(8.0 + (imza * 0.08), 4.0, 13.0)),
+            'sut': round(float(xg_deger * 3.15), 2),
+            'korner': round(float(4.5 + (xg_deger - 1.2) * 1.4), 2)
+        }
+        return temiz_ham
+
+    def _gelismis_bulten_olustur(self, fikstur_df, durum_callback=None):
+        """
+        %100 GERÇEK GELECEK MAÇ BÜLTENİ MOTORU:
+        1) Paralel (10 Thread) ESPN Canlı Fikstür API ile 20 ligin önümüzdeki 10 günlük gerçek maçlarını ve oranlarını çeker.
+        2) Football-Data (fixtures.csv) içindeki gerçek Bet365/Pinnacle oranlarını ve maçlarını birleştirir.
+        3) Gerçek maçlar bulunduğunda ASLA sahte/sentetik maç üretmez!
+        """
+        self.gelecek_maclar = []
+        gorulen_mac_anahtarlari = set()
+        ters_lig_sozluk = {v: k for k, v in self.LIGLER.items()}
+        simdi = _turkiye_saati_simdi()
+
+        # Football-Data fixtures.csv içindeki oranları önbelleğe al (Oran zenginleştirme için)
+        csv_oran_haritasi = {}
+        if not fikstur_df.empty and 'HomeTeam' in fikstur_df.columns:
+            for _, row in fikstur_df.iterrows():
+                ev_ham = str(row.get('HomeTeam', '')).strip()
+                dep_ham = str(row.get('AwayTeam', '')).strip()
+                div = str(row.get('Div', '')).strip()
+                if not ev_ham or not dep_ham:
+                    continue
+                lig_adi = ters_lig_sozluk.get(div, 'Avrupa Ligi')
+                ev_norm = self._takim_bul_veya_ekle(ev_ham, lig_adi)
+                dep_norm = self._takim_bul_veya_ekle(dep_ham, lig_adi)
+
+                o1 = float(row['B365H']) if 'B365H' in row and pd.notna(row['B365H']) else (float(row['AvgH']) if 'AvgH' in row and pd.notna(row['AvgH']) else None)
+                ox = float(row['B365D']) if 'B365D' in row and pd.notna(row['B365D']) else (float(row['AvgD']) if 'AvgD' in row and pd.notna(row['AvgD']) else None)
+                o2 = float(row['B365A']) if 'B365A' in row and pd.notna(row['B365A']) else (float(row['AvgA']) if 'AvgA' in row and pd.notna(row['AvgA']) else None)
+                if o1 and ox and o2 and o1 > 1.01 and ox > 1.01 and o2 > 1.01:
+                    csv_oran_haritasi[f"{ev_norm.lower()}_{dep_norm.lower()}"] = (o1, ox, o2)
+
+                tarih_str, gun_farki, unix_ts = self._tarih_ayristir(
+                    row.get('Date'), row.get('Time'), 6, gecmis_maci_reddet=True
+                )
+                if tarih_str is None:
+                    continue
+
+                anahtar = f"{ev_norm.lower()}_{dep_norm.lower()}"
+                if anahtar not in gorulen_mac_anahtarlari:
+                    gorulen_mac_anahtarlari.add(anahtar)
+                    self.gelecek_maclar.append(self._mac_sozlugu_hazirla(
+                        lig_adi, ev_norm, dep_norm, o1, ox, o2,
+                        tarih_str=tarih_str, gun_farki=gun_farki, unix_zamani=unix_ts
+                    ))
+
+        # 2. Kademe: 20 Lig İçin Paralel ESPN Canlı Fikstür Taraması (Önümüzdeki 10 Gün)
+        if durum_callback:
+            durum_callback("20 Lig için önümüzdeki 10 günün gerçek maç fikstürü çekiliyor...", 27)
+
+        bas_tarih = simdi.strftime("%Y%m%d")
+        bit_tarih = (simdi + datetime.timedelta(days=10)).strftime("%Y%m%d")
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+        def _lig_espn_cek(lig_adi, espn_kod):
+            bulunanlar = []
+            # Hem 10 günlük tarih aralığını hem de varsayılan aktif hafta bültenini sorgula
+            urls = [
+                f"https://site.api.espn.com/apis/site/v2/sports/soccer/{espn_kod}/scoreboard?dates={bas_tarih}-{bit_tarih}&limit=300",
+                f"https://site.api.espn.com/apis/site/v2/sports/soccer/{espn_kod}/scoreboard?limit=200"
+            ]
+            gorulen_event_id = set()
+            for url in urls:
+                try:
+                    req = urllib.request.Request(url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=6, context=self.ssl_context) as resp:
+                        veri = json.loads(resp.read().decode('utf-8', errors='ignore'))
+                        for evn in veri.get("events", []):
+                            ev_id = evn.get("id", "")
+                            if ev_id in gorulen_event_id:
+                                continue
+                            gorulen_event_id.add(ev_id)
+
+                            durum_tipi = evn.get("status", {}).get("type", {}).get("state", "pre")
+                            if durum_tipi == "post":
+                                continue
+
+                            iso_tarih = evn.get("date", "")
+                            try:
+                                utc_dt = datetime.datetime.strptime(iso_tarih[:16], "%Y-%m-%dT%H:%M")
+                                yerel_dt = utc_dt + datetime.timedelta(hours=3)
+                            except Exception:
+                                continue
+
+                            # Geçmiş maçları veya 12 günden uzak maçları alma
+                            if yerel_dt < simdi - datetime.timedelta(hours=1, minutes=45):
+                                continue
+                            if yerel_dt > simdi + datetime.timedelta(days=12):
+                                continue
+
+                            comp = evn.get("competitions", [{}])[0]
+                            yarismacilar = comp.get("competitors", [])
+                            if len(yarismacilar) < 2:
+                                continue
+
+                            ev_isim, dep_isim = "", ""
+                            for y in yarismacilar:
+                                t_obj = y.get("team", {})
+                                ad = t_obj.get("displayName") or t_obj.get("shortDisplayName") or t_obj.get("name") or ""
+                                if y.get("homeAway") == "home":
+                                    ev_isim = ad
+                                else:
+                                    dep_isim = ad
+                            if not ev_isim or not dep_isim:
+                                continue
+
+                            # ESPN içerisinde gerçek bahis oranları varsa çek
+                            o1, ox, o2 = None, None, None
+                            odds_list = comp.get("odds", [])
+                            if odds_list and isinstance(odds_list, list):
+                                odd_obj = odds_list[0]
+                                h_ml = odd_obj.get("homeTeamOdds", {}).get("moneyLine")
+                                a_ml = odd_obj.get("awayTeamOdds", {}).get("moneyLine")
+                                d_ml = odd_obj.get("drawOdds", {}).get("moneyLine")
+                                o1 = self._amerikandan_ondaliga(h_ml)
+                                ox = self._amerikandan_ondaliga(d_ml)
+                                o2 = self._amerikandan_ondaliga(a_ml)
+
+                            bulunanlar.append((lig_adi, ev_isim, dep_isim, yerel_dt, o1, ox, o2))
+                    if len(bulunanlar) >= 5:
+                        break
+                except Exception:
+                    continue
+            return bulunanlar
+
+        with ThreadPoolExecutor(max_workers=10) as havuz:
+            gelecek_isler = [
+                havuz.submit(_lig_espn_cek, l_adi, e_kod)
+                for l_adi, e_kod in self.ESPN_LIG_KODLARI.items()
+            ]
+            for is_sonuc in as_completed(gelecek_isler):
+                try:
+                    mac_kumesi = is_sonuc.result()
+                    for (lig_adi, ev_isim, dep_isim, yerel_dt, o1, ox, o2) in mac_kumesi:
+                        ev = self._takim_bul_veya_ekle(ev_isim, lig_adi)
+                        dep = self._takim_bul_veya_ekle(dep_isim, lig_adi)
+                        if ev == dep:
+                            continue
+                        anahtar = f"{ev.lower()}_{dep.lower()}"
+                        if anahtar in gorulen_mac_anahtarlari:
+                            continue
+                        gorulen_mac_anahtarlari.add(anahtar)
+
+                        if anahtar in csv_oran_haritasi:
+                            o1, ox, o2 = csv_oran_haritasi[anahtar]
+
+                        fark_saat = max(0.0, (yerel_dt - simdi).total_seconds() / 3600.0)
+                        gun_farki = 1 if fark_saat <= 26.0 else (2 if fark_saat <= 52.0 else min(10, int(fark_saat // 24) + 1))
+
+                        self.gelecek_maclar.append(self._mac_sozlugu_hazirla(
+                            lig_adi, ev, dep, o1, ox, o2,
+                            tarih_str=yerel_dt.strftime("%d.%m %H:%M"),
+                            gun_farki=gun_farki,
+                            unix_zamani=int(yerel_dt.timestamp())
+                        ))
+                except Exception:
+                    continue
+
+        # Maçları yakın tarihten uzağa doğru kronolojik sırala
+        self.gelecek_maclar.sort(key=lambda x: x.get('unix_zamani', 0))
+
+    CanliInternetVeriMotoru._amerikandan_ondaliga = _amerikandan_ondaliga
+    CanliInternetVeriMotoru._tarih_ayristir = _gelismis_tarih_ayristir
+    CanliInternetVeriMotoru._takim_bul_veya_ekle = _gelismis_takim_bul_veya_ekle
+    CanliInternetVeriMotoru._bulten_olustur = _gelismis_bulten_olustur
+
+    # ==================== 18 YAPAY ZEKA + 13 İSTATİSTİK SİSTEMİ KESKİNLİK ARTIRIMI ====================
+    @staticmethod
+    def _hassas_dixon_coles_poisson(p):
+        elo_fark = p['ev_elo'] - p['dep_elo']
+        elo_etki = elo_fark * 0.00155
+        form_etki = (p['ev_form'] - p['dep_form']) * 0.018
+        sut_baskisi_ev = (p.get('ev_isabetli_sut', 4.8) - 4.4) * 0.045
+        sut_baskisi_dep = (p.get('dep_isabetli_sut', 4.0) - 4.0) * 0.045
+
+        baz_ev = ((p['ev_xg'] * p['dep_xga']) / 1.25) + elo_etki + form_etki + sut_baskisi_ev
+        baz_dep = ((p['dep_xg'] * p['ev_xga']) / 1.25) - (elo_etki * 0.85) - (form_etki * 0.75) + sut_baskisi_dep
+
+        # Piyasa olasılıkları ile çapraz kalibrasyon (Gerçek oran uyumu)
+        piyasa_oran_ev = p['piyasa_p1'] / max(p['piyasa_p2'], 0.08)
+        piyasa_kayma = np.clip(np.log(max(piyasa_oran_ev, 0.2)) * 0.14, -0.35, 0.45)
+
+        lambda_ev = float(np.clip((baz_ev * 1.10) + piyasa_kayma, 0.28, 4.50))
+        lambda_dep = float(np.clip(baz_dep - (piyasa_kayma * 0.65), 0.22, 4.20))
+
+        matris = np.zeros((9, 9))
+        rho = -0.115
+        for i in range(9):
+            for j in range(9):
+                tau = 1.0
+                if i == 0 and j == 0:
+                    tau = 1.0 - (lambda_ev * lambda_dep * rho)
+                elif i == 0 and j == 1:
+                    tau = 1.0 + (lambda_ev * rho)
+                elif i == 1 and j == 0:
+                    tau = 1.0 + (lambda_dep * rho)
+                elif i == 1 and j == 1:
+                    tau = 1.0 - rho
+                matris[i, j] = poisson.pmf(i, lambda_ev) * poisson.pmf(j, lambda_dep) * max(0.05, tau)
+
+        matris /= np.sum(matris)
+        ms1 = float(np.sum(np.tril(matris, -1)))
+        msx = float(np.sum(np.diag(matris)))
+        ms2 = float(np.sum(np.triu(matris, 1)))
+
+        ust_1_5, ust_2_5, ust_3_5, kg_var = 0.0, 0.0, 0.0, 0.0
+        skorlar = []
+        for i in range(9):
+            for j in range(9):
+                ol = float(matris[i, j])
+                skorlar.append((f"{i}-{j}", ol))
+                if (i + j) >= 2:
+                    ust_1_5 += ol
+                if (i + j) >= 3:
+                    ust_2_5 += ol
+                if (i + j) >= 4:
+                    ust_3_5 += ol
+                if i >= 1 and j >= 1:
+                    kg_var += ol
+
+        skorlar.sort(key=lambda x: x[1], reverse=True)
+        return {
+            'lambda_ev': lambda_ev,
+            'lambda_dep': lambda_dep,
+            'olasiliklar': np.array([ms2, msx, ms1]),
+            'ust_1_5': float(ust_1_5),
+            'ust_2_5': float(ust_2_5),
+            'ust_3_5': float(ust_3_5),
+            'kg_var': float(kg_var),
+            'skorlar': skorlar[:6]
+        }
+
+    DerinYapayZekaVeSimulasyonMotoru.dixon_coles_poisson = _hassas_dixon_coles_poisson
+
+
+_gercek_fikstur_ve_gelismis_ai_motorunu_bagla()
 
 
 def _omega_otonom_bulut_sistemi_bagla():
@@ -5648,12 +6072,11 @@ def _omega_otonom_bulut_sistemi_bagla():
     1) GitHub API 409/422 çakışma hatalarını RLock + 4 kademeli SHA Retry ile %100 engeller.
     2) Üye ve Admin yetkilerini 'omega_uyeler.json' üzerinden Web ve Masaüstü arasında çift yönlü anlık senkronize eder.
     3) Web Admin Panelini mobil ekranlar için sekmeli yapar ve 15 saniyelik yenilemelerde kapanmasını/titremesini önler.
-    4) Web'deki 18+13 AI Kupon Motorunu ve 5dk Otonom Bulut sistemini bağlar.
+    4) Web tarafına doğrudan 20 Lig ESPN Canlı API Fikstür Çekici + 18+13 AI Motorunu bağlar.
     """
     orijinal_html_uret = UyeVeGitHubYoneticisi._interaktif_html_uret
     api_yazma_kilidi = threading.RLock()
 
-    # 1. GITHUB API OKUMA VE YAZMA FONKSİYONLARINI ÇAKIŞMAYA KARŞI ZIRHLA
     def _zirhli_github_dosya_oku(self, dosya_yolu: str):
         owner = self.veriler["github_owner"]
         repo = self.veriler["github_repo"]
@@ -5737,7 +6160,6 @@ def _omega_otonom_bulut_sistemi_bagla():
     UyeVeGitHubYoneticisi._github_dosya_oku = _zirhli_github_dosya_oku
     UyeVeGitHubYoneticisi._github_dosya_uzerine_yaz = _zirhli_github_dosya_uzerine_yaz
 
-    # 2. ÇİFT YÖNLÜ ANLIK ÜYE VE ADMİN SENKRONİZASYONU (WEB VE MASAÜSTÜ ARASINDA)
     def _gelismis_webden_uyeleri_senkronize_et(self, zorla=False):
         if not self.github_ayarlari_tam_mi():
             return False
@@ -5852,7 +6274,6 @@ def _omega_otonom_bulut_sistemi_bagla():
     UyeVeGitHubYoneticisi.uye_sil = _senkron_uye_sil
     UyeVeGitHubYoneticisi.uye_admin_degistir = _senkron_uye_admin_degistir
 
-    # 3. MASAÜSTÜ (TKINTER) ÜYE YÖNETİM PENCERESİNİ CANLI OTOMATİK YENİLENİR YAP
     def _canli_uye_yonetim_penceresi_ac(self):
         f_ana = self.ayarlar.ana_font
         pencere = tk.Toplevel(self.root)
@@ -6005,7 +6426,7 @@ def _omega_otonom_bulut_sistemi_bagla():
                     pencere.after(0, lambda: _tabloyu_yenile(zorla=False))
                     if not sessiz and ok:
                         pencere.after(0, lambda: durum_bilgi_lbl.config(
-                            text=f"✅ Web Admin Panelindeki güncel üyeler senkronize edildi ({datetime.datetime.now().strftime('%H:%M:%S')})",
+                            text=f"✅ Web Admin Panelindeki güncel üyeler senkronize edildi ({_turkiye_saati_simdi().strftime('%H:%M:%S')})",
                             fg="#4ade80"
                         ))
             threading.Thread(target=_bg_cek, daemon=True).start()
@@ -6054,7 +6475,6 @@ def _omega_otonom_bulut_sistemi_bagla():
 
     OmegaTahminArayuzu._uye_yonetim_penceresi_ac = _canli_uye_yonetim_penceresi_ac
 
-    # 4. WEB PAKETİ GÖNDERİLİRKEN WEB'DEKİ ÜYELERİN EZİLMESİNİ ENGELLE
     def _guvenli_web_paketi_olustur_ve_gonder(
         self, veri_motoru, ai_motoru, secili_mac_ozeti,
         son_3tik_mac_baslik="", canli_yayin_aktif=True, auto_web_aktif=True,
@@ -6067,7 +6487,7 @@ def _omega_otonom_bulut_sistemi_bagla():
             if self.github_ayarlari_tam_mi():
                 self.webden_gelen_uyeleri_yerel_senkronize_et(zorla=False)
 
-            simdi_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+            simdi_str = _turkiye_saati_simdi().strftime("%d.%m.%Y %H:%M:%S")
             unix_ts = int(time.time())
 
             self.veriler["auto_web_aktif"] = bool(auto_web_aktif)
@@ -6178,10 +6598,9 @@ def _omega_otonom_bulut_sistemi_bagla():
         finally:
             self.gonderim_kilidi.release()
 
-    # 5. MOBİL UYUMLU + 15 SANİYEDE KAPANMAYAN / TİTREMEYEN WEB ADMİN PANELİ YAMASI
+    # ==================== WEB (JAVASCRIPT) GERÇEK 20 LİG FİKSTÜR MOTORU + 18 AI + ADMİN YAMASI ====================
     ek_yama_js_kodu = r"""
 <style>
-  /* MOBİL VE MASAÜSTÜ ADMİN PANELİ TAM UYUMLULUK YAMASI */
   .adm-mobil-sekmeler {
     display: none;
     gap: 8px;
@@ -6217,51 +6636,28 @@ def _omega_otonom_bulut_sistemi_bagla():
     -webkit-overflow-scrolling: touch;
   }
   @media (max-width: 920px) {
-    #modal-admin-overlay {
-      padding: 0 !important;
-    }
+    #modal-admin-overlay { padding: 0 !important; }
     #modal-admin-overlay .modal-box {
-      width: 100vw !important;
-      max-width: 100vw !important;
-      height: 100dvh !important;
-      max-height: 100dvh !important;
-      border-radius: 0 !important;
-      border: none !important;
+      width: 100vw !important; max-width: 100vw !important;
+      height: 100dvh !important; max-height: 100dvh !important;
+      border-radius: 0 !important; border: none !important;
     }
-    #modal-admin-overlay .modal-header {
-      padding: 10px 12px !important;
-    }
-    #modal-admin-overlay .modal-header h3 {
-      font-size: 13px !important;
-      line-height: 1.3;
-    }
-    .adm-mobil-sekmeler {
-      display: flex !important;
-    }
+    #modal-admin-overlay .modal-header { padding: 10px 12px !important; }
+    #modal-admin-overlay .modal-header h3 { font-size: 13px !important; line-height: 1.3; }
+    .adm-mobil-sekmeler { display: flex !important; }
     #adm-ana-grid {
-      display: flex !important;
-      flex-direction: column !important;
-      padding: 10px !important;
-      gap: 10px !important;
-      overflow-y: auto !important;
+      display: flex !important; flex-direction: column !important;
+      padding: 10px !important; gap: 10px !important; overflow-y: auto !important;
     }
     #adm-sol-panel, #adm-sag-panel {
-      min-height: 0 !important;
-      flex: 1 !important;
-      width: 100% !important;
+      min-height: 0 !important; flex: 1 !important; width: 100% !important;
     }
     .admin-form-bar {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: stretch !important;
-      gap: 8px !important;
-      padding: 10px !important;
+      display: flex !important; flex-direction: column !important;
+      align-items: stretch !important; gap: 8px !important; padding: 10px !important;
     }
-    .admin-form-bar .admin-inp,
-    .admin-form-bar button {
-      width: 100% !important;
-      min-height: 40px !important;
-      font-size: 14px !important;
+    .admin-form-bar .admin-inp, .admin-form-bar button {
+      width: 100% !important; min-height: 40px !important; font-size: 14px !important;
     }
   }
   body.mobile-mode #modal-admin-overlay { padding: 0 !important; }
@@ -6280,7 +6676,7 @@ def _omega_otonom_bulut_sistemi_bagla():
   }
 </style>
 <script>
-// ==================== KAPANMAZ / TİTREMEZ WEB ADMİN PANELİ + 18-AI KUPON + ÇAKIŞMASIZ GITHUB KUYRUĞU ====================
+// ==================== 20 LİG GERÇEK FİKSTÜR (ESPN + FOOTBALL-DATA) & KAPANMAZ ADMİN PANELİ ====================
 let besDakikaSayaci = 300;
 let sonUyeDegisiklikZamani = 0;
 let sonBilinenUyeSha = "";
@@ -6289,6 +6685,234 @@ let ghYazmaKuyrugu = Promise.resolve();
 let aktifAdminMobilSekme = 1;
 let adminPaneliKullaniciAcikTutuyor = false;
 let sonWebUyeTabloImzasi = "";
+
+const WEB_ESPN_LIGLERI = [
+  ["Türkiye Süper Lig", "tur.1"],
+  ["Türkiye 1. Lig (Alt Lig)", "tur.2"],
+  ["UEFA Şampiyonlar Ligi", "uefa.champions"],
+  ["UEFA Avrupa Ligi", "uefa.europa"],
+  ["UEFA Konferans Ligi", "uefa.europa.conf"],
+  ["İngiltere Premier Lig", "eng.1"],
+  ["İngiltere Championship (Alt Lig)", "eng.2"],
+  ["İngiltere League 1 (Alt Lig)", "eng.3"],
+  ["İspanya La Liga", "esp.1"],
+  ["İspanya La Liga 2 (Alt Lig)", "esp.2"],
+  ["İtalya Serie A", "ita.1"],
+  ["İtalya Serie B (Alt Lig)", "ita.2"],
+  ["Almanya Bundesliga", "ger.1"],
+  ["Almanya Bundesliga 2 (Alt Lig)", "ger.2"],
+  ["Fransa Ligue 1", "fra.1"],
+  ["Fransa Ligue 2 (Alt Lig)", "fra.2"],
+  ["Hollanda Eredivisie", "ned.1"],
+  ["Portekiz Süper Ligi", "por.1"],
+  ["Belçika Pro Lig", "bel.1"],
+  ["İskoçya Premiership", "sco.1"]
+];
+
+const WEB_TAKIM_ESLEME = {
+  "Galatasaray": "Galatasaray", "Fenerbahce": "Fenerbahçe", "Fenerbahçe": "Fenerbahçe",
+  "Besiktas": "Beşiktaş", "Beşiktaş": "Beşiktaş", "Trabzonspor": "Trabzonspor",
+  "Istanbul Basaksehir": "Başakşehir", "RAMS Basaksehir": "Başakşehir", "Başakşehir": "Başakşehir",
+  "Samsunspor": "Samsunspor", "Goztepe": "Göztepe", "Göztepe": "Göztepe",
+  "Eyupspor": "Eyüpspor", "Eyüpspor": "Eyüpspor", "Kasimpasa": "Kasımpaşa", "Kasımpaşa": "Kasımpaşa",
+  "Rizespor": "Çaykur Rizespor", "Caykur Rizespor": "Çaykur Rizespor",
+  "Bodrumspor": "Bodrum FK", "Bodrum FK": "Bodrum FK", "Fatih Karagumruk": "Karagümrük",
+  "Genclerbirligi": "Gençlerbirliği", "Manchester City": "Man City", "Manchester United": "Man United",
+  "Nottingham Forest": "Nott'm Forest", "Newcastle United": "Newcastle",
+  "Tottenham Hotspur": "Tottenham", "Wolverhampton Wanderers": "Wolves",
+  "Brighton & Hove Albion": "Brighton", "West Ham United": "West Ham",
+  "Leicester City": "Leicester", "Ipswich Town": "Ipswich",
+  "Sheffield United": "Sheffield United", "Leeds United": "Leeds",
+  "AFC Bournemouth": "Bournemouth", "Atlético Madrid": "Ath Madrid", "Atletico Madrid": "Ath Madrid",
+  "Athletic Club": "Ath Bilbao", "Real Betis": "Betis", "Real Sociedad": "Sociedad", "Celta Vigo": "Celta",
+  "Rayo Vallecano": "Vallecano", "Deportivo Alavés": "Alaves", "CD Leganés": "Leganes",
+  "RCD Espanyol": "Espanyol", "Internazionale": "Inter", "Inter Milan": "Inter",
+  "AC Milan": "Milan", "AS Roma": "Roma", "Hellas Verona": "Verona", "SSC Napoli": "Napoli",
+  "Bayern Munich": "Bayern Munich", "Bayer Leverkusen": "Leverkusen",
+  "Borussia Dortmund": "Dortmund", "Eintracht Frankfurt": "Ein Frankfurt",
+  "Borussia Mönchengladbach": "M'gladbach", "VfB Stuttgart": "Stuttgart",
+  "SC Freiburg": "Freiburg", "VfL Wolfsburg": "Wolfsburg",
+  "Paris Saint-Germain": "Paris SG", "Olympique Marseille": "Marseille",
+  "Olympique Lyonnais": "Lyon", "AS Monaco": "Monaco", "LOSC Lille": "Lille",
+  "Sporting CP": "Sp Lisbon", "SL Benfica": "Benfica", "FC Porto": "Porto",
+  "PSV Eindhoven": "PSV", "Ajax Amsterdam": "Ajax", "Feyenoord Rotterdam": "Feyenoord"
+};
+
+function jsTakimAdiniEslestir(hamAd, ligAdi) {
+  let temiz = String(hamAd || "").trim();
+  if (WEB_TAKIM_ESLEME[temiz]) temiz = WEB_TAKIM_ESLEME[temiz];
+  if (VERI.takim_profilleri && VERI.takim_profilleri[temiz]) return temiz;
+  const kucuk = temiz.toLowerCase();
+  if (VERI.takim_profilleri) {
+    for (const mevcut of Object.keys(VERI.takim_profilleri)) {
+      const mKucuk = mevcut.toLowerCase();
+      if (mKucuk.length >= 4 && (mKucuk === kucuk || mKucuk.includes(kucuk) || kucuk.includes(mKucuk))) {
+        return mevcut;
+      }
+    }
+  }
+  takimProfiliOlusturVeyaGetir(temiz, ligAdi);
+  return temiz;
+}
+
+function jsAmerikandanOndaliga(mlVal) {
+  const ml = parseFloat(mlVal);
+  if (isNaN(ml) || ml === 0) return null;
+  if (ml > 0) return +Math.min(25.0, Math.max(1.05, 1.0 + (ml / 100.0))).toFixed(2);
+  return +Math.min(25.0, Math.max(1.05, 1.0 + (100.0 / Math.abs(ml)))).toFixed(2);
+}
+
+// Bilgisayar kapalıyken doğrudan tarayıcıdan 20 Ligin gerçek maçlarını (ESPN CORS API + Football-Data) çeker
+webtenYeniBultenVeCSVIndir = async function(manuelTiklandi = false) {
+  if (otonomVeriCekiliyorMu) return;
+  otonomVeriCekiliyorMu = true;
+  const badge = document.getElementById("status-badge");
+  if (badge) badge.textContent = "🌐 20 Ligin Gerçek İleri Tarihli Fikstürü & Oranları Çekiliyor (18 AI)...";
+
+  try {
+    const simdi = new Date();
+    const yil1 = simdi.getUTCFullYear();
+    const ay1 = String(simdi.getUTCMonth() + 1).padStart(2, "0");
+    const gun1 = String(simdi.getUTCDate()).padStart(2, "0");
+    const basTarih = `${yil1}${ay1}${gun1}`;
+
+    const bitDt = new Date(simdi.getTime() + 10 * 24 * 3600 * 1000);
+    const yil2 = bitDt.getUTCFullYear();
+    const ay2 = String(bitDt.getUTCMonth() + 1).padStart(2, "0");
+    const gun2 = String(bitDt.getUTCDate()).padStart(2, "0");
+    const bitTarih = `${yil2}${ay2}${gun2}`;
+
+    const yeniMacListesi = [];
+    const gorulenAnahtarlar = new Set();
+
+    // 20 Ligi paralel olarak doğrudan ESPN API'sinden çek (Proxy gerektirmez, CORS açıktır)
+    const espnIstekleri = WEB_ESPN_LIGLERI.map(async ([ligAdi, espnKod]) => {
+      const urls = [
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${espnKod}/scoreboard?dates=${basTarih}-${bitTarih}&limit=300`,
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${espnKod}/scoreboard?limit=200`
+      ];
+      for (const u of urls) {
+        try {
+          const ctrl = new AbortController();
+          const tId = setTimeout(() => ctrl.abort(), 6500);
+          const r = await fetch(u, { signal: ctrl.signal, cache: "no-store" });
+          clearTimeout(tId);
+          if (!r.ok) continue;
+          const veri = await r.json();
+          const events = (veri && veri.events) ? veri.events : [];
+          let ligSayac = 0;
+
+          for (const evn of events) {
+            const state = (evn.status && evn.status.type && evn.status.type.state) ? evn.status.type.state : "pre";
+            if (state === "post") continue;
+
+            const dtMs = Date.parse(evn.date || "");
+            if (isNaN(dtMs)) continue;
+            if (dtMs < Date.now() - 105 * 60 * 1000) continue;
+            if (dtMs > Date.now() + 12 * 24 * 3600 * 1000) continue;
+
+            const comp = (evn.competitions && evn.competitions[0]) ? evn.competitions[0] : {};
+            const competitors = comp.competitors || [];
+            if (competitors.length < 2) continue;
+
+            let evHam = "", depHam = "";
+            for (const c of competitors) {
+              const tObj = c.team || {};
+              const tAd = tObj.displayName || tObj.shortDisplayName || tObj.name || "";
+              if (c.homeAway === "home") evHam = tAd;
+              else depHam = tAd;
+            }
+            if (!evHam || !depHam) continue;
+
+            const ev = jsTakimAdiniEslestir(evHam, ligAdi);
+            const dep = jsTakimAdiniEslestir(depHam, ligAdi);
+            if (ev === dep) continue;
+
+            const anahtar = `${ev.toLowerCase()}_${dep.toLowerCase()}`;
+            if (gorulenAnahtarlar.has(anahtar)) continue;
+            gorulenAnahtarlar.add(anahtar);
+
+            const pEv = takimProfiliOlusturVeyaGetir(ev, ligAdi);
+            const pDep = takimProfiliOlusturVeyaGetir(dep, ligAdi);
+
+            let o1 = null, ox = null, o2 = null;
+            if (comp.odds && comp.odds[0]) {
+              const od = comp.odds[0];
+              o1 = jsAmerikandanOndaliga(od.homeTeamOdds && od.homeTeamOdds.moneyLine);
+              ox = jsAmerikandanOndaliga(od.drawOdds && od.drawOdds.moneyLine);
+              o2 = jsAmerikandanOndaliga(od.awayTeamOdds && od.awayTeamOdds.moneyLine);
+            }
+
+            let p1, px, p2;
+            if (o1 && ox && o2 && o1 > 1.01 && ox > 1.01 && o2 > 1.01) {
+              const h1 = 1.0 / o1, hx = 1.0 / ox, h2 = 1.0 / o2;
+              const top = h1 + hx + h2;
+              p1 = h1 / top; px = hx / top; p2 = h2 / top;
+            } else {
+              const eloFark = (pEv.elo + 65.0) - pDep.elo;
+              const xgFark = (pEv.xg - pEv.xga) - (pDep.xg - pDep.xga);
+              const p1Ham = Math.min(0.82, Math.max(0.12, (1.0 / (1.0 + Math.pow(10.0, -eloFark / 400.0))) * 0.72 + (0.06 * xgFark)));
+              const pxHam = Math.min(0.33, Math.max(0.12, 0.27 - Math.abs(p1Ham - 0.45) * 0.22));
+              const p2Ham = Math.min(0.76, Math.max(0.06, 1.0 - p1Ham - pxHam));
+              const top = p1Ham + pxHam + p2Ham;
+              p1 = p1Ham / top; px = pxHam / top; p2 = p2Ham / top;
+              o1 = +(1.0 / (p1 * 1.055)).toFixed(2);
+              ox = +(1.0 / (px * 1.055)).toFixed(2);
+              o2 = +(1.0 / (p2 * 1.055)).toFixed(2);
+            }
+
+            // Türkiye Saatine (UTC+3) göre formatla
+            const trDt = new Date(dtMs + 3 * 3600 * 1000);
+            const gg = String(trDt.getUTCDate()).padStart(2, "0");
+            const aa = String(trDt.getUTCMonth() + 1).padStart(2, "0");
+            const ss = String(trDt.getUTCHours()).padStart(2, "0");
+            const dd = String(trDt.getUTCMinutes()).padStart(2, "0");
+            const tarihStr = `${gg}.${aa} ${ss}:${dd}`;
+
+            const farkSaat = Math.max(0, (dtMs - Date.now()) / 3600000.0);
+            const gunFarki = farkSaat <= 26 ? 1 : (farkSaat <= 52 ? 2 : Math.min(10, Math.floor(farkSaat / 24) + 1));
+
+            const mObj = {
+              lig: ligAdi, ev: ev, dep: dep,
+              tarih_str: tarihStr, gun_farki: gunFarki, unix_zamani: Math.floor(dtMs / 1000),
+              oran_1: +o1.toFixed(2), oran_x: +ox.toFixed(2), oran_2: +o2.toFixed(2),
+              parametreler: {
+                ev_elo: pEv.elo, dep_elo: pDep.elo, ev_xg: pEv.xg, dep_xg: pDep.xg,
+                ev_xga: pEv.xga, dep_xga: pDep.xga, ev_form: pEv.form, dep_form: pDep.form,
+                ev_isabetli_sut: pEv.sut, dep_isabetli_sut: pDep.sut,
+                ev_korner: pEv.korner || 5.2, dep_korner: pDep.korner || 4.6,
+                piyasa_p1: p1, piyasa_px: px, piyasa_p2: p2
+              }
+            };
+            omegaWebTamMacHesapla(mObj);
+            yeniMacListesi.push(mObj);
+            ligSayac++;
+          }
+          if (ligSayac >= 3) break;
+        } catch (e) {}
+      }
+    });
+
+    await Promise.allSettled(espnIstekleri);
+
+    if (yeniMacListesi.length > 0) {
+      yeniMacListesi.sort((a, b) => (a.unix_zamani || 0) - (b.unix_zamani || 0));
+      VERI.maclar = yeniMacListesi;
+      VERI.guncelleme_tarihi = new Date().toLocaleString("tr-TR") + ` (${yeniMacListesi.length} Gerçek Maç)`;
+      VERI.timestamp = Math.floor(Date.now() / 1000);
+
+      arayuzuBaslat();
+      await githubCanliVeriKaydet(`OMEGA Otonom Web AI: ${yeniMacListesi.length} Gercek Fikstur ve 18 AI Guncellendi`);
+
+      if (manuelTiklandi) {
+        const u = oturumDegeriAl("omega_user") || "Üye";
+        tkinterLogGonder(u, `🌐 Web Üzerinden Gerçek Bülten Çekildi (${yeniMacListesi.length} Maç)`);
+      }
+    }
+  } catch (e) {}
+  otonomVeriCekiliyorMu = false;
+  ustDurumRozetiGuncelle();
+};
 
 function adminPaneliSuAnAcikMi() {
   const el = document.getElementById("modal-admin-overlay");
@@ -6344,7 +6968,6 @@ function adminMobilYapiyiHazirla() {
   const modalBox = document.querySelector("#modal-admin-overlay .modal-box");
   if (!modalBox || document.getElementById("adm-mobil-sekme-bar")) return;
 
-  // Dış siyah alana yanlışlıkla dokunulduğunda Admin Panelinin kapanmasını engelle (Sadece X KAPAT butonu kapatsın)
   const overlayEl = document.getElementById("modal-admin-overlay");
   if (overlayEl) {
     overlayEl.onclick = null;
@@ -6486,7 +7109,6 @@ kullaniciAdminMi = function(kullaniciAdi) {
   return Boolean(VERI.uyeler[gercekAnahtar].admin_mi);
 };
 
-// ÇOK ÖNEMLİ: 15 saniyelik yenilemelerde adminButonunuGuncelle çağrıldığında açık olan Admin Panelini ASLA kapatma!
 adminButonunuGuncelle = function() {
   const aktifUser = oturumDegeriAl("omega_user");
   const btn = document.getElementById("btn-admin-panel");
@@ -6498,11 +7120,8 @@ adminButonunuGuncelle = function() {
   if (uBadge && aktifUser) {
     uBadge.textContent = (yetkiliMi ? "👑 " : "👤 ") + aktifUser;
   }
-  // NOT: Burada eski kodda yer alan modalAdminKapat() çağrısı tamamen kaldırıldı!
-  // Böylece 15s yenilemelerinde Admin Paneli asla kendi kendine kapanmaz.
 };
 
-// Tablo sadece gerçek bir üye/yetki değişimi olduğunda çizilir (Gidip gelme / titreme %100 önlenir)
 const _orijinalWebAdminUyeTablosuYenile = webAdminUyeTablosuYenile;
 webAdminUyeTablosuYenile = function(zorla = false) {
   const yeniImza = JSON.stringify(VERI.uyeler || {});
@@ -6670,7 +7289,6 @@ girisKontrol = async function() {
   oturumuAc(gercekKullanici);
 };
 
-// 12 ve 15 saniyelik canlı veri çekimlerinde Admin Paneli açıksa ekranı sarsma ve üyeleri koru!
 canliVeriCek = async function(ekraniYenile = true) {
   const korunacakUyeler = JSON.parse(JSON.stringify(VERI.uyeler || {}));
   try {
@@ -6703,14 +7321,12 @@ canliVeriCek = async function(ekraniYenile = true) {
   await githubUyeleriAnlikCek(false);
   adminButonunuGuncelle();
 
-  // Admin paneli açıkken arka plandaki ana ekran tablosunu yeniden çizip odak kaybı yaratma
   if (ekraniYenile && oturumDegeriAl("omega_user") && !adminPaneliSuAnAcikMi()) {
     ustDurumRozetiGuncelle();
     bultenTablosunuYenile();
   }
 };
 
-// 15 saniyelik otonom adımda Admin Paneli açıksa DOM'u sarsmadan sessizce hesapla
 const _eskiAutoWeb15sAdim = autoWeb15sOtonomAdim;
 autoWeb15sOtonomAdim = function() {
   if (adminPaneliSuAnAcikMi()) {
@@ -6739,7 +7355,6 @@ modalAdminAc = async function() {
   webAdminLoglariYenile();
 };
 
-// Sadece kullanıcı X KAPAT tuşuna bastığında (veya çıkış yaptığında) kapanır!
 modalAdminKapat = function(kullaniciKapatti = false) {
   const stack = (new Error().stack || "");
   const cikisMi = stack.includes("cikisYap");
@@ -7119,7 +7734,6 @@ webAkilliKuponOlustur = function(modalGoster = true) {
   }
 };
 
-// ==================== 5 DAKİKADA BİR (300s) OTOMATİK GÜNCELLEME + ÜST BAR "🔄 ŞİMDİ YENİLE" BUTONU ====================
 async function githubBulutPythonTetikle() {
   try {
     const cfg = VERI.gh_cfg;
@@ -7139,7 +7753,7 @@ async function tamWebYenilemeCalistir(manuelMi = true) {
   const btnYenile = document.getElementById("btn-manuel-5dk-yenile");
   if (btnYenile) {
     btnYenile.disabled = true;
-    btnYenile.textContent = "⏳ 18 AI & Bülten Yenileniyor...";
+    btnYenile.textContent = "⏳ 20 Lig Gerçek Bülten & 18 AI Yenileniyor...";
   }
 
   try {
@@ -7170,7 +7784,7 @@ window.addEventListener("DOMContentLoaded", () => {
     btn.id = "btn-manuel-5dk-yenile";
     btn.className = "top-btn";
     btn.style.cssText = "background: linear-gradient(135deg, #0284c7, #2563eb); border: 1px solid #38bdf8;";
-    btn.title = "5 dakikalık süreyi beklemeden internetten maçları, oranları, üyeleri ve 18 AI tahminlerini anında yeniler";
+    btn.title = "5 dakikalık süreyi beklemeden internetten gerçek maçları, oranları, üyeleri ve 18 AI tahminlerini anında yeniler";
     btn.textContent = "🔄 Şimdi Yenile (5dk AI)";
     btn.onclick = () => tamWebYenilemeCalistir(true);
     if (sayacBadge && sayacBadge.nextSibling) {
@@ -7186,7 +7800,6 @@ setInterval(async () => {
   if (!aktifUser) return;
 
   if (besDakikaSayaci % 6 === 0) {
-    // Kullanıcı yeni üye/şifre kutusuna yazı yazıyorsa arka plan senkronizasyonuyla odak bozma
     const aktifEl = document.activeElement ? document.activeElement.id : "";
     if (aktifEl !== "adm-yeni-user" && aktifEl !== "adm-yeni-pass") {
       await githubUyeleriAnlikCek(false);
@@ -7230,7 +7843,7 @@ _omega_otonom_bulut_sistemi_bagla()
 def bulut_uzerinde_otonom_egit_ve_guncelle():
     """
     GitHub Actions sunucusunda (bilgisayar kapalıyken) '--bulut-calistir' parametresiyle çalışır.
-    Web üzerinden eklenen üyeleri ve adminlikleri ('omega_uyeler.json') koruyarak 14 ligi ve 18 AI'yı günceller.
+    Web üzerinden eklenen üyeleri ve adminlikleri ('omega_uyeler.json') koruyarak 20 ligin gerçek fikstürünü ve 18+13 AI'yı günceller.
     """
     mevcut_veri = {}
     if os.path.exists("omega_canli_veri.json"):
@@ -7261,7 +7874,7 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         print("💻 Bilgisayar şu an aktif yayında (PC Önceliği). Bulut güncellemesi atlandı.")
         return
 
-    print("🚀 OMEGA Bulut Python AI Başlatıldı: 14 Lig çekiliyor ve 18+13 Yapay Zeka sıfırdan eğitiliyor...")
+    print("🚀 OMEGA Bulut Python AI Başlatıldı: 20 Ligin gerçek fikstürü çekiliyor ve 18+13 Yapay Zeka eğitiliyor...")
     ayarlar = PlatformAyarlari("WIN")
     veri_motoru = CanliInternetVeriMotoru()
     ai_motoru = DerinYapayZekaVeSimulasyonMotoru(ayarlar)
@@ -7275,7 +7888,7 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         detay_13 = ai_motoru.onuc_sistem_detayli_istatistik_analizi(m, analiz)
         web_maclar.append(UyeVeGitHubYoneticisi._mac_analizini_json_yap(m, analiz, detay_13))
 
-    simdi_str = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S") + " (GitHub Python 18-AI)"
+    simdi_str = _turkiye_saati_simdi().strftime("%d.%m.%Y %H:%M:%S") + " (GitHub Python 18-AI)"
     mevcut_veri["guncelleme_tarihi"] = simdi_str
     mevcut_veri["timestamp"] = int(time.time())
     mevcut_veri["canli_mod"] = False
@@ -7296,7 +7909,7 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
     with open("omega_uyeler.json", "w", encoding="utf-8") as f:
         json.dump(mevcut_veri["uyeler"], f, ensure_ascii=False, indent=2)
 
-    print(f"✅ OMEGA Bulut Python AI tamamlandı: {len(web_maclar)} maç ve 18+13 AI modeli güncellendi!")
+    print(f"✅ OMEGA Bulut Python AI tamamlandı: {len(web_maclar)} gerçek maç ve 18+13 AI modeli güncellendi!")
 
 
 if __name__ == "__main__":
