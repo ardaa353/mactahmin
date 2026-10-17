@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "18.10.2026 01:15:22",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🚀 OMEGA Quantum AI v4.0 Ana Motoru Başlatıldı"
+  },
+  {
     "tarih": "18.10.2026 00:44:17",
     "kullanici": "arda",
     "ip": "5.24.227.253",
@@ -1454,15 +1463,5 @@
     "ekran": "1470x767",
     "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
     "islem": "🔥 3-Tık 13'lü İstatistik Penceresini Açtı: Arsenal - Chelsea"
-  },
-  {
-    "tarih": "17.10.2026 03:13:05",
-    "kullanici": "arda1234",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "1470x767",
-    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
-    "islem": "Maç İnceledi: Arsenal - Chelsea"
   }
 ]
