@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "17.10.2026 23:28:18",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 3.54)"
+  },
+  {
     "tarih": "17.10.2026 23:27:16",
     "kullanici": "admin",
     "ip": "5.24.227.253",
@@ -1464,15 +1473,5 @@
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "🔥 3-Tık 13'lü İstatistik Penceresini Açtı: Real Madrid - Barcelona"
-  },
-  {
-    "tarih": "17.10.2026 02:31:06",
-    "kullanici": "umit",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x695",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Maç İnceledi: Real Madrid - Barcelona"
   }
 ]
