@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "17.10.2026 23:02:26",
+    "kullanici": "admin",
+    "ip": "5.24.227.253",
+    "konum": "Ankara / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x735",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "🎫 AI Kupon Oluşturdu (YUKSEK | 3 Maç | 1 Gün)"
+  },
+  {
     "tarih": "17.10.2026 23:00:58",
     "kullanici": "batu",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1458,16 +1468,6 @@
     "konum": "Ankara / Türkiye",
     "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
     "ekran": "393x497",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Başarısız Giriş (Hatalı Şifre)"
-  },
-  {
-    "tarih": "17.10.2026 01:29:50",
-    "kullanici": "admin",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "Başarısız Giriş (Hatalı Şifre)"
   }
