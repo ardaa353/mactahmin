@@ -34,6 +34,6 @@ jobs:
           git config --local user.email "omega-ai-bot@users.noreply.github.com"
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
-          git add omega_canli_veri.json
+          git add omega_canli_veri.json omega_uyeler.json || true
           git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: 14 Lig + 18 AI Otonom Guncelleme"
           git push || true
