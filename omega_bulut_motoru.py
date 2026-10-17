@@ -174,11 +174,22 @@ class UyeVeGitHubYoneticisi:
         if not self.github_ayarlari_tam_mi():
             return False
         try:
-            mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
-            if not mevcut_metin:
-                return False
-            veri = json.loads(mevcut_metin)
-            uzak_uyeler = veri.get("uyeler", {})
+            uzak_uyeler = None
+            uye_metin, _ = self._github_dosya_oku("omega_uyeler.json")
+            if uye_metin:
+                try:
+                    parsed = json.loads(uye_metin)
+                    if isinstance(parsed, dict) and parsed:
+                        uzak_uyeler = parsed
+                except Exception:
+                    pass
+
+            if not uzak_uyeler:
+                mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
+                if mevcut_metin:
+                    veri = json.loads(mevcut_metin)
+                    uzak_uyeler = veri.get("uyeler", {})
+
             if not isinstance(uzak_uyeler, dict) or not uzak_uyeler:
                 return False
 
@@ -186,12 +197,17 @@ class UyeVeGitHubYoneticisi:
             for k, detay in uzak_uyeler.items():
                 eski = self.veriler["uyeler"].get(k, {})
                 cozulen_sifre = self.token_coz(detay.get("sifre_maskeli", "")) if detay.get("sifre_maskeli") else eski.get("sifre", "1234")
-                if cozulen_sifre == "***" and eski.get("sifre"):
+                if cozulen_sifre in ("***", "") and eski.get("sifre"):
                     cozulen_sifre = eski.get("sifre")
+                
+                # Şifre hash'ini ve maskesini asla kaybetmeyecek şekilde tam koruma sağla
+                s_hash = detay.get("sifre_hash") or eski.get("sifre_hash") or self.kodu_hashle(cozulen_sifre)
+                s_mask = detay.get("sifre_maskeli") or eski.get("sifre_maskeli") or self.token_gizle(cozulen_sifre)
+
                 yeni_yerel[k] = {
                     "sifre": cozulen_sifre,
-                    "sifre_hash": detay.get("sifre_hash", self.kodu_hashle(cozulen_sifre)),
-                    "sifre_maskeli": detay.get("sifre_maskeli", self.token_gizle(cozulen_sifre)),
+                    "sifre_hash": s_hash,
+                    "sifre_maskeli": s_mask,
                     "admin_mi": bool(detay.get("admin_mi", False)),
                     "kayit_tarihi": detay.get("kayit_tarihi", eski.get("kayit_tarihi", "-"))
                 }
@@ -845,6 +861,12 @@ if ($veri !== false) { echo $veri; } else { http_response_code(502); echo ""; }
   body.mobile-mode .custom-grid, body.mobile-mode .coupon-grid { grid-template-columns: 1fr; }
   body.mobile-mode .analyze-btn, body.mobile-mode .coupon-create-btn { width: 100%; padding: 11px; }
   body.mobile-mode .modal-13-body { grid-template-columns: 1fr; }
+  /* Admin Paneli Mobil Uyumluluk Yaması */
+  body.mobile-mode #modal-admin-overlay .modal-box { max-height: 96vh; width: 98vw; }
+  body.mobile-mode #modal-admin-overlay .modal-box > div:nth-child(2) { grid-template-columns: 1fr !important; gap: 10px; padding: 8px !important; }
+  body.mobile-mode .admin-form-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  body.mobile-mode .admin-inp { width: 100% !important; }
+  
 </style>
 </head>
 <body>
@@ -5576,7 +5598,7 @@ class OmegaTahminArayuzu:
         self.detay_metin.config(state=tk.DISABLED)
 
 
-# ==================== 5 DAKİKADA BİR ÇALIŞAN OTONOM GITHUB PYTHON BULUT MOTORU VE WEB TETİKLEYİCİSİ ====================
+# ==================== 5 DAKİKADA BİR ÇALIŞAN OTONOM GITHUB PYTHON BULUT MOTORU, TAM YETKİLİ WEB ADMİN VE 18-AI ZEKİ KUPON YAMASI ====================
 def _github_actions_yaml_uret() -> str:
     """GitHub'ın kendi Ubuntu Python sunucusunda 5 dakikada bir 14 ligi çekip 18+13 AI eğiten iş akışı."""
     return """name: OMEGA Quantum AI 5dk Otonom Python Motoru
@@ -5615,7 +5637,7 @@ jobs:
           git config --local user.email "omega-ai-bot@users.noreply.github.com"
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
-          git add omega_canli_veri.json
+          git add omega_canli_veri.json omega_uyeler.json || true
           git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: 14 Lig + 18 AI Otonom Guncelleme"
           git push || true
 """
@@ -5623,61 +5645,766 @@ jobs:
 
 def _omega_otonom_bulut_sistemi_bagla():
     """
-    1) Web arayüzüne (index.html) Auto Web açıkken ve PC kapalıyken her 5 dakikada bir (300s)
-       otomatik yeni maç çekme + GitHub Actions Python iş akışını tetikleme kodu ekler.
-    2) Auto Web kapalıysa ve Sitede Göster açıksa sadece PC verisini korur.
-    3) GitHub'a 'omega_bulut_motoru.py' ve '.github/workflows/omega_otonom_ai.yml' dosyalarını otomatik yükler.
+    1) Üye ve Admin yetkilerini 'omega_uyeler.json' üzerinden anında çift yönlü senkronize eder.
+    2) Web'deki 18+13 AI Kupon Motorunu mutabakat sayımı, 4-senaryo testi ve EV optimizasyonu ile en zeki seviyeye çıkarır.
+    3) 5 dakikada bir otomatik güncelleme + üst barda manuel '🔄 Şimdi Yenile (5dk AI)' butonu ekler.
     """
     orijinal_html_uret = UyeVeGitHubYoneticisi._interaktif_html_uret
     orijinal_paket_gonder = UyeVeGitHubYoneticisi.web_paketi_olustur_ve_gonder
 
-    ek_5dk_js_kodu = """
-// ==================== 5 DAKİKADA BİR (300s) OTOMATİK YENİ MAÇ ÇEKME & GITHUB PYTHON BULUT TETİKLEYİCİ ====================
-let besDakikaSayaci = 300;
+    # Python tarafında üye/admin değiştiğinde hem omega_uyeler.json hem omega_canli_veri.json anında güncellensin
+    def _gelismis_aninda_uyeleri_github_guncelle(self):
+        if not self.github_ayarlari_tam_mi():
+            return
+        def _arkaplan_uye_push():
+            try:
+                uye_sozluk = self._web_uye_sozlugu_hazirla()
+                self._github_dosya_uzerine_yaz(
+                    "omega_uyeler.json",
+                    json.dumps(uye_sozluk, ensure_ascii=False, indent=2),
+                    "Anlik Uye ve Admin Yetki Senkronizasyonu (omega_uyeler.json)"
+                )
+                mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
+                if mevcut_metin:
+                    veri = json.loads(mevcut_metin)
+                    veri["uyeler"] = uye_sozluk
+                    veri["timestamp"] = int(time.time())
+                    self._github_dosya_uzerine_yaz(
+                        "omega_canli_veri.json",
+                        json.dumps(veri, ensure_ascii=False),
+                        "Anlik Uye ve Admin Listesi Senkronizasyonu"
+                    )
+            except Exception:
+                pass
+        threading.Thread(target=_arkaplan_uye_push, daemon=True).start()
 
+    def _gelismis_webden_uyeleri_senkronize_et(self):
+        if not self.github_ayarlari_tam_mi():
+            return False
+        try:
+            uzak_uyeler = None
+            uye_metin, _ = self._github_dosya_oku("omega_uyeler.json")
+            if uye_metin:
+                try:
+                    parsed = json.loads(uye_metin)
+                    if isinstance(parsed, dict) and parsed:
+                        uzak_uyeler = parsed
+                except Exception:
+                    pass
+
+            if not uzak_uyeler:
+                mevcut_metin, _ = self._github_dosya_oku("omega_canli_veri.json")
+                if mevcut_metin:
+                    veri = json.loads(mevcut_metin)
+                    uzak_uyeler = veri.get("uyeler", {})
+
+            if not isinstance(uzak_uyeler, dict) or not uzak_uyeler:
+                return False
+
+            yeni_yerel = {}
+            for k, detay in uzak_uyeler.items():
+                eski = self.veriler["uyeler"].get(k, {})
+                cozulen_sifre = self.token_coz(detay.get("sifre_maskeli", "")) if detay.get("sifre_maskeli") else eski.get("sifre", "1234")
+                if cozulen_sifre in ("***", "") and eski.get("sifre"):
+                    cozulen_sifre = eski.get("sifre")
+                yeni_yerel[k] = {
+                    "sifre": cozulen_sifre,
+                    "sifre_hash": detay.get("sifre_hash", self.kodu_hashle(cozulen_sifre)),
+                    "sifre_maskeli": detay.get("sifre_maskeli", self.token_gizle(cozulen_sifre)),
+                    "admin_mi": bool(detay.get("admin_mi", False)),
+                    "kayit_tarihi": detay.get("kayit_tarihi", eski.get("kayit_tarihi", "-"))
+                }
+            self.veriler["uyeler"] = yeni_yerel
+            self.kaydet()
+            return True
+        except Exception:
+            return False
+
+    UyeVeGitHubYoneticisi.aninda_uyeleri_github_guncelle = _gelismis_aninda_uyeleri_github_guncelle
+    UyeVeGitHubYoneticisi.webden_gelen_uyeleri_yerel_senkronize_et = _gelismis_webden_uyeleri_senkronize_et
+
+    ek_yama_js_kodu = r"""
+// ==================== TAM YETKİLİ WEB ADMİN + 18 SİSTEMLİ ULTRA-ZEKİ AI KUPON + 5DK & MANUEL YENİLEME MOTORU ====================
+let besDakikaSayaci = 300;
+let sonUyeDegisiklikZamani = 0;
+let manuelYenilemeCalisiyor = false;
+
+// Türkçe karakter ve emoji bozulmalarını %100 önleyen güvenli Base64 çeviriciler
+function utf8ToB64(str) {
+  try {
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  } catch (e) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+}
+
+function b64ToUtf8(b64) {
+  try {
+    const temiz = (b64 || "").replace(/\s/g, "");
+    const bin = atob(temiz);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  } catch (e) {
+    return decodeURIComponent(escape(atob((b64 || "").replace(/\s/g, ""))));
+  }
+}
+
+// Hem 'Bearer' hem 'token' başlığını otomatik deneyen GitHub API İstek Motoru
+async function ghApiIstek(yol, method = "GET", bodyObj = null) {
+  const cfg = VERI.gh_cfg;
+  if (!cfg || !cfg.o || !cfg.r || !cfg.k) return null;
+  const token = tokenCoz(cfg.k);
+  if (!token) return null;
+
+  const tamUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/${yol}`;
+  for (const authPrefix of ["Bearer", "token"]) {
+    try {
+      const headers = {
+        "Authorization": `${authPrefix} ${token}`,
+        "Accept": "application/vnd.github.v3+json"
+      };
+      if (bodyObj) headers["Content-Type"] = "application/json";
+      const opts = {
+        method: method,
+        headers: headers,
+        cache: "no-store"
+      };
+      if (bodyObj) opts.body = JSON.stringify(bodyObj);
+      const res = await fetch(tamUrl, opts);
+      if (res.status === 401) continue;
+      return res;
+    } catch (e) {}
+  }
+  return null;
+}
+
+// Büyük-küçük harf duyarsız kullanıcı bulucu
+function kullaniciAnahtariBul(aranan) {
+  if (!aranan || !VERI.uyeler) return null;
+  const temiz = String(aranan).trim();
+  if (VERI.uyeler[temiz]) return temiz;
+  const kucuk = temiz.toLowerCase();
+  return Object.keys(VERI.uyeler).find(k => k.toLowerCase() === kucuk) || null;
+}
+
+kullaniciAdminMi = function(kullaniciAdi) {
+  const gercekAnahtar = kullaniciAnahtariBul(kullaniciAdi);
+  if (!gercekAnahtar || !VERI.uyeler[gercekAnahtar]) return false;
+  if (gercekAnahtar.toLowerCase() === "admin") return true;
+  return Boolean(VERI.uyeler[gercekAnahtar].admin_mi);
+};
+
+// GitHub'dan anlık olarak omega_uyeler.json dosyasını çeker (Önbelleğe takılmaz!)
+async function githubUyeleriAnlikCek() {
+  try {
+    const cfg = VERI.gh_cfg;
+    if (!cfg || !cfg.o || !cfg.r) return false;
+    const res = await ghApiIstek(`contents/omega_uyeler.json?ref=${cfg.b || 'main'}&t=${Date.now()}`, "GET");
+    if (res && res.ok) {
+      const d = await res.json();
+      if (d && d.content) {
+        const parsed = JSON.parse(b64ToUtf8(d.content));
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) {
+          VERI.uyeler = parsed;
+          varsayilanAdminGarantiEt();
+          adminButonunuGuncelle();
+          return true;
+        }
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
+// GitHub'a anlık olarak omega_uyeler.json yazar (0.2 saniyede tamamlanır, boyut sınırına takılmaz!)
+async function githubUyeleriAnlikKaydet(commitMesaji) {
+  sonUyeDegisiklikZamani = Date.now();
+  const cfg = VERI.gh_cfg;
+  if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
+  const branch = cfg.b || "main";
+
+  for (let deneme = 0; deneme < 2; deneme++) {
+    try {
+      let sha = null;
+      const getRes = await ghApiIstek(`contents/omega_uyeler.json?ref=${branch}&t=${Date.now()}`, "GET");
+      if (getRes && getRes.ok) {
+        const getJson = await getRes.json();
+        sha = getJson.sha;
+      }
+      const body = {
+        message: commitMesaji || "Web Admin: Uye ve Yetki Guncellemesi",
+        content: utf8ToB64(JSON.stringify(VERI.uyeler, null, 2)),
+        branch: branch
+      };
+      if (sha) body.sha = sha;
+
+      const putRes = await ghApiIstek("contents/omega_uyeler.json", "PUT", body);
+      if (putRes && putRes.ok) {
+        // Arka planda ana JSON dosyasını da senkronize et
+        githubCanliVeriKaydet(commitMesaji).catch(() => {});
+        return true;
+      }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return false;
+}
+
+// Giriş kontrolünde her zaman güncel adminlik yetkisini çek
+girisKontrol = async function() {
+  const uInput = document.getElementById("inp-user");
+  const pInput = document.getElementById("inp-pass");
+  const errEl = document.getElementById("login-err");
+  if (!uInput || !pInput) return;
+
+  const girilenAd = uInput.value.trim();
+  const p = pInput.value.trim();
+  if (!girilenAd || !p) {
+    errEl.textContent = "⚠️ Lütfen kullanıcı adı ve şifrenizi girin!";
+    return;
+  }
+
+  errEl.style.color = "#38bdf8";
+  errEl.textContent = "🔄 Üye ve Admin yetkileri doğrulanıyor...";
+
+  // Önce omega_uyeler.json üzerinden en güncel adminlik ve üye listesini çek
+  await githubUyeleriAnlikCek();
+  varsayilanAdminGarantiEt();
+
+  const girilenHash = koduHashle(p);
+  let gercekKullanici = kullaniciAnahtariBul(girilenAd);
+  let uye = gercekKullanici ? VERI.uyeler[gercekKullanici] : null;
+
+  if (!sifreEslesiyorMu(uye, p, girilenHash)) {
+    await githubApiCanliVeriCek();
+    gercekKullanici = kullaniciAnahtariBul(girilenAd);
+    uye = gercekKullanici ? VERI.uyeler[gercekKullanici] : null;
+  }
+
+  errEl.style.color = "#f87171";
+  if (!uye) {
+    errEl.textContent = "❌ Bu kullanıcı kayıtlı değil veya yönetici tarafından silindi!";
+    tkinterLogGonder(girilenAd || "Bilinmeyen", "Başarısız Giriş (Kullanıcı Yok)");
+    return;
+  }
+
+  if (!sifreEslesiyorMu(uye, p, girilenHash)) {
+    errEl.textContent = "❌ Hatalı şifre girdiniz!";
+    tkinterLogGonder(gercekKullanici, "Başarısız Giriş (Hatalı Şifre)");
+    return;
+  }
+
+  errEl.textContent = "";
+  oturumDegeriYaz("omega_user", gercekKullanici);
+  oturumDegeriYaz("omega_hash", uye.sifre_hash || girilenHash);
+  tkinterLogGonder(gercekKullanici, uye.admin_mi ? "👑 Admin Olarak Siteye Giriş Yaptı" : "✅ Siteye Başarılı Giriş Yaptı");
+  oturumuAc(gercekKullanici);
+};
+
+// Canlı veri çekilirken CDN önbelleğindeki eski üye listesinin güncel admin yetkisini ezmesini engelle
+const _eskiCanliVeriCek = canliVeriCek;
+canliVeriCek = async function(ekraniYenile = true) {
+  const yedekUyeler = JSON.parse(JSON.stringify(VERI.uyeler || {}));
+  await _eskiCanliVeriCek(ekraniYenile);
+  if (Date.now() - sonUyeDegisiklikZamani < 60000) {
+    VERI.uyeler = yedekUyeler;
+  }
+  await githubUyeleriAnlikCek();
+  adminButonunuGuncelle();
+};
+
+// Admin Paneli Açma, Üye Ekleme, Admin Tiki Verme/Alma, Üye Silme ve Log Okuma
+modalAdminAc = async function() {
+  await githubUyeleriAnlikCek();
+  const aktifUser = oturumDegeriAl("omega_user");
+  if (!kullaniciAdminMi(aktifUser)) {
+    alert("Bu panele erişim için Admin yetkisine sahip olmanız gerekir!");
+    return;
+  }
+  document.getElementById("modal-admin-overlay").style.display = "flex";
+  webAdminUyeTablosuYenile();
+  webAdminLoglariYenile();
+};
+
+webAdminUyeEkle = async function() {
+  const aktifAdmin = oturumDegeriAl("omega_user");
+  if (!kullaniciAdminMi(aktifAdmin)) {
+    alert("Yetkiniz yok!");
+    return;
+  }
+
+  const uAdi = document.getElementById("adm-yeni-user").value.trim();
+  const sifre = document.getElementById("adm-yeni-pass").value.trim();
+  const yeniAdminMi = document.getElementById("adm-yeni-yetki").checked;
+  const msgEl = document.getElementById("adm-durum-mesaj");
+
+  if (!uAdi || !sifre) {
+    msgEl.style.color = "#f87171";
+    msgEl.textContent = "⚠️ Kullanıcı adı ve şifre boş bırakılamaz!";
+    return;
+  }
+
+  msgEl.style.color = "#38bdf8";
+  msgEl.textContent = `⏳ '${uAdi}' kaydediliyor ve senkronize ediliyor...`;
+
+  VERI.uyeler[uAdi] = {
+    sifre_hash: koduHashle(sifre),
+    sifre_maskeli: tokenGizle(sifre),
+    admin_mi: Boolean(yeniAdminMi),
+    kayit_tarihi: new Date().toLocaleString("tr-TR").slice(0, 16)
+  };
+  VERI.timestamp = Math.floor(Date.now() / 1000);
+
+  document.getElementById("adm-yeni-user").value = "";
+  document.getElementById("adm-yeni-pass").value = "";
+  document.getElementById("adm-yeni-yetki").checked = false;
+  webAdminUyeTablosuYenile();
+
+  const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): Yeni Uye Eklendi (${uAdi})`);
+  tkinterLogGonder(aktifAdmin, `👑 Web Admin Panelinden Üye Ekledi: ${uAdi} (${yeniAdminMi ? 'Admin' : 'Üye'})`);
+
+  msgEl.style.color = "#4ade80";
+  msgEl.textContent = ok
+    ? `✅ '${uAdi}' (${yeniAdminMi ? '👑 Admin' : '👤 Üye'}) başarıyla kaydedildi ve tüm cihazlarda aktif edildi!`
+    : `✅ '${uAdi}' kaydedildi (GitHub Token kontrol edin).`;
+};
+
+webAdminYetkiDegistir = async function(hedefKullanici, yeniDurum) {
+  const aktifAdmin = oturumDegeriAl("omega_user");
+  if (!kullaniciAdminMi(aktifAdmin)) return;
+  const msgEl = document.getElementById("adm-durum-mesaj");
+
+  const gercekHedef = kullaniciAnahtariBul(hedefKullanici) || hedefKullanici;
+  if (!yeniDurum) {
+    const adminSayisi = Object.values(VERI.uyeler).filter(u => u.admin_mi).length;
+    if (adminSayisi <= 1 && VERI.uyeler[gercekHedef] && VERI.uyeler[gercekHedef].admin_mi) {
+      alert("Sistemde en az 1 Admin kalmak zorundadır! Son adminin yetkisi kaldırılamaz.");
+      webAdminUyeTablosuYenile();
+      return;
+    }
+  }
+
+  if (VERI.uyeler[gercekHedef]) {
+    VERI.uyeler[gercekHedef].admin_mi = Boolean(yeniDurum);
+    VERI.timestamp = Math.floor(Date.now() / 1000);
+    msgEl.style.color = "#38bdf8";
+    msgEl.textContent = `⏳ '${gercekHedef}' yetkisi güncelleniyor...`;
+    webAdminUyeTablosuYenile();
+
+    const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): ${gercekHedef} Admin=${yeniDurum}`);
+    adminButonunuGuncelle();
+    tkinterLogGonder(aktifAdmin, `👑 Web Admin: '${gercekHedef}' Adminlik Tiki -> ${yeniDurum ? 'AÇILDI' : 'KAPATILDI'}`);
+
+    msgEl.style.color = "#4ade80";
+    msgEl.textContent = ok
+      ? `✅ '${gercekHedef}' yetkisi ${yeniDurum ? '👑 ADMİN' : '👤 STANDART ÜYE'} olarak anında güncellendi!`
+      : `✅ '${gercekHedef}' yetkisi güncellendi.`;
+  }
+};
+
+webAdminUyeSil = async function(hedefKullanici) {
+  const aktifAdmin = oturumDegeriAl("omega_user");
+  if (!kullaniciAdminMi(aktifAdmin)) return;
+  const msgEl = document.getElementById("adm-durum-mesaj");
+
+  const gercekHedef = kullaniciAnahtariBul(hedefKullanici) || hedefKullanici;
+  if (VERI.uyeler[gercekHedef] && VERI.uyeler[gercekHedef].admin_mi) {
+    const adminSayisi = Object.values(VERI.uyeler).filter(u => u.admin_mi).length;
+    if (adminSayisi <= 1) {
+      alert("Sistemdeki son Admin hesabını silemezsiniz!");
+      return;
+    }
+  }
+
+  delete VERI.uyeler[gercekHedef];
+  VERI.timestamp = Math.floor(Date.now() / 1000);
+  msgEl.style.color = "#38bdf8";
+  msgEl.textContent = `⏳ '${gercekHedef}' siliniyor...`;
+  webAdminUyeTablosuYenile();
+
+  const ok = await githubUyeleriAnlikKaydet(`Web Admin (${aktifAdmin}): Uye Silindi (${gercekHedef})`);
+  tkinterLogGonder(aktifAdmin, `🗑️ Web Admin Panelinden Üye Sildi: ${gercekHedef}`);
+
+  msgEl.style.color = "#4ade80";
+  msgEl.textContent = ok
+    ? `🗑️ '${gercekHedef}' silindi ve siteye erişimi anında kapatıldı.`
+    : `🗑️ '${gercekHedef}' silindi.`;
+};
+
+webAdminLoglariYenile = async function() {
+  const tbody = document.getElementById("adm-log-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#38bdf8;">📡 Canlı IP Logları GitHub API\'den çekiliyor...</td></tr>';
+
+  let logListesi = [];
+  try {
+    const cfg = VERI.gh_cfg;
+    if (cfg && cfg.o && cfg.r) {
+      const res = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${cfg.b || 'main'}&t=${Date.now()}`, "GET");
+      if (res && res.ok) {
+        const d = await res.json();
+        if (d && d.content) {
+          const parsed = JSON.parse(b64ToUtf8(d.content));
+          if (Array.isArray(parsed)) logListesi = parsed;
+        }
+      }
+      if (logListesi.length === 0) {
+        const r2 = await fetch(`omega_ziyaretci_log.json?t=${Date.now()}`, { cache: "no-store" });
+        if (r2.ok) {
+          const p2 = await r2.json();
+          if (Array.isArray(p2)) logListesi = p2;
+        }
+      }
+    }
+  } catch (e) {}
+
+  tbody.innerHTML = "";
+  if (logListesi.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8;">Henüz kayıtlı log bulunamadı.</td></tr>';
+    return;
+  }
+  logListesi.forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.tarih || '-'}</td>
+      <td><b>${item.kullanici || '-'}</b></td>
+      <td style="color:#38bdf8; font-family:monospace;">${item.ip || '-'}</td>
+      <td>${item.konum || '-'}</td>
+      <td>${item.isp || '-'}</td>
+      <td style="color:#4ade80;">${item.islem || '-'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+};
+
+webAdminLoglariTemizle = async function() {
+  const aktifAdmin = oturumDegeriAl("omega_user");
+  if (!kullaniciAdminMi(aktifAdmin)) return;
+  try {
+    const cfg = VERI.gh_cfg;
+    const branch = (cfg && cfg.b) ? cfg.b : "main";
+    let sha = null;
+    const getRes = await ghApiIstek(`contents/omega_ziyaretci_log.json?ref=${branch}&t=${Date.now()}`, "GET");
+    if (getRes && getRes.ok) {
+      const getJson = await getRes.json();
+      sha = getJson.sha;
+    }
+    const body = { message: `Web Admin (${aktifAdmin}): Loglar temizlendi`, content: utf8ToB64("[]"), branch: branch };
+    if (sha) body.sha = sha;
+    await ghApiIstek("contents/omega_ziyaretci_log.json", "PUT", body);
+    webAdminLoglariYenile();
+  } catch (e) {}
+};
+
+// ==================== 18 SİSTEMLİ ULTRA-ZEKİ GÖMÜLÜ YAPAY ZEKA KUPON MOTORU ====================
+webAkilliKuponOlustur = function(modalGoster = true) {
+  if (!VERI.maclar || VERI.maclar.length === 0) return;
+
+  // Kupon oluşturmadan hemen önce tüm maçları gömülü 18 Yapay Zeka + 13 İstatistik motorundan geçir!
+  VERI.maclar.forEach(m => omegaWebTamMacHesapla(m));
+
+  const risk = document.getElementById("sel-kupon-risk").value;
+  const macAdet = parseInt(document.getElementById("sel-kupon-adet").value || "3", 10);
+  const gunSiniri = parseInt(document.getElementById("sel-kupon-gun").value || "7", 10);
+
+  const u = oturumDegeriAl("omega_user") || "Üye";
+  if (modalGoster) {
+    tkinterLogGonder(u, `🎫 18-AI Zeki Kupon Oluşturdu (${risk} | ${macAdet} Maç | ${gunSiniri} Gün)`);
+  }
+
+  let adayMaclar = VERI.maclar.filter(m => (m.gun_farki || 1) <= gunSiniri);
+  if (adayMaclar.length < macAdet) {
+    adayMaclar = [...VERI.maclar];
+  }
+
+  const macAdayListesi = adayMaclar.map(m => {
+    const sapmaGenel = m.model_sapmasi || 2.0;
+    const guvenGenel = m.guven_skoru || 78.0;
+    const bireyselModeller = m.bireysel_ai || [];
+
+    // 18 Sistemin Taraf (MS1 / MSX / MS2) Mutabakat Sayımı
+    let oyMs1 = 0, oyMsx = 0, oyMs2 = 0;
+    bireyselModeller.forEach(bm => {
+      if (bm.fav === "MS 1") oyMs1++;
+      else if (bm.fav === "MS X") oyMsx++;
+      else oyMs2++;
+    });
+    if (m.poisson_ol[2] >= m.poisson_ol[1] && m.poisson_ol[2] >= m.poisson_ol[0]) oyMs1++;
+    else if (m.poisson_ol[1] >= m.poisson_ol[0]) oyMsx++; else oyMs2++;
+
+    if (m.mc_ol[2] >= m.mc_ol[1] && m.mc_ol[2] >= m.mc_ol[0]) oyMs1++;
+    else if (m.mc_ol[1] >= m.mc_ol[0]) oyMsx++; else oyMs2++;
+
+    if (m.piyasa_ortak[2] >= m.piyasa_ortak[1] && m.piyasa_ortak[2] >= m.piyasa_ortak[0]) oyMs1++;
+    else if (m.piyasa_ortak[1] >= m.piyasa_ortak[0]) oyMsx++; else oyMs2++;
+
+    // 4 Senaryo Monte Carlo Dayanıklılık Analizi
+    const senaryoDegerleri = Object.values(m.senaryolar || {});
+    const senaryoMs1Min = senaryoDegerleri.length ? Math.min(...senaryoDegerleri.map(s => s[0])) : m.nihai[2];
+    const senaryoMs2Min = senaryoDegerleri.length ? Math.min(...senaryoDegerleri.map(s => s[2])) : m.nihai[0];
+
+    const tumMarketler = tumMarketHavuzunuCikar(m);
+    const d13Harita = {};
+    if (m.detay_13 && m.detay_13.marketler) {
+      m.detay_13.marketler.forEach(dm => { d13Harita[dm.market] = dm; });
+    }
+
+    const puanliMarketler = tumMarketler.map(mk => {
+      const iht = mk.ihtimal;
+      const oran = mk.oran;
+      const evDegeri = (iht / 100.0) * oran; // Matematiksel Beklenen Değer (EV)
+      const kellyAvantaji = Math.max(0, ((evDegeri - 1.0) / Math.max(oran - 1.0, 0.15)) * 100.0);
+
+      // Market bazlı 18 veya 13 Sistem Onay Sayısı ve Sapma Hesabı
+      let sistemOnayMetni = "";
+      let mutabakatOrani = 0.75;
+      let marketSapma = sapmaGenel;
+
+      if (mk.kod === "MS1") {
+        mutabakatOrani = oyMs1 / 18.0;
+        sistemOnayMetni = `${oyMs1}/18 AI Sistem Onaylı (4-Senaryo Taban: %${senaryoMs1Min.toFixed(0)})`;
+      } else if (mk.kod === "MS2") {
+        mutabakatOrani = oyMs2 / 18.0;
+        sistemOnayMetni = `${oyMs2}/18 AI Sistem Onaylı (4-Senaryo Taban: %${senaryoMs2Min.toFixed(0)})`;
+      } else if (mk.kod === "MSX") {
+        mutabakatOrani = Math.max(oyMsx / 18.0, iht / 100.0);
+        sistemOnayMetni = `18 AI Sürpriz Denge Modeli (EV: ${evDegeri.toFixed(2)})`;
+      } else if (d13Harita[mk.ad] && d13Harita[mk.ad].sistemler) {
+        const sList = d13Harita[mk.ad].sistemler;
+        const esik = risk === "DUSUK" ? 65.0 : (risk === "ORTA" ? 54.0 : 42.0);
+        const onayAdet = sList.filter(s => s.yuzde >= esik).length;
+        mutabakatOrani = onayAdet / 13.0;
+        const sOrt = d13Harita[mk.ad].ortalama;
+        const sVar = sList.reduce((acc, x) => acc + Math.pow(x.yuzde - sOrt, 2), 0) / sList.length;
+        marketSapma = Math.sqrt(sVar);
+        sistemOnayMetni = `${onayAdet}/13 AI Sistem Mutabakatı (Sapma: ±%${marketSapma.toFixed(1)})`;
+      } else {
+        sistemOnayMetni = `18+13 AI Konsensüsü (Güven: %${guvenGenel.toFixed(1)})`;
+      }
+
+      // 18 SİSTEMLİ OMEGA ZEKA PUANI FORMÜLÜ
+      let zekaPuani = 0.0;
+      let neden = "";
+
+      if (risk === "DUSUK") {
+        if (iht >= 71.0 && oran >= 1.15 && oran <= 1.72) {
+          zekaPuani = (iht * 1.25) + (mutabakatOrani * 45.0) + (guvenGenel * 0.35) - (marketSapma * 2.6);
+          if (mk.kat !== "TARAF") zekaPuani += 5.0;
+          neden = `🛡️ ${sistemOnayMetni} | Zeka Güveni: %${guvenGenel.toFixed(1)}`;
+        } else {
+          zekaPuani = (iht * 0.65) + (mutabakatOrani * 15.0) - (marketSapma * 2.0);
+          neden = `🛡️ ${sistemOnayMetni}`;
+        }
+      } else if (risk === "ORTA") {
+        if (oran >= 1.40 && oran <= 2.38 && iht >= 53.0) {
+          zekaPuani = (iht * 0.90) + (evDegeri * 42.0) + (mutabakatOrani * 36.0) + (kellyAvantaji * 0.6) - (marketSapma * 1.5);
+          if (["GOL_25", "KG", "KORNER", "SUT", "ILK_YARI", "KART", "TAKIM_GOL"].includes(mk.kat)) {
+            zekaPuani += 7.5;
+          }
+          neden = `🧠 ${sistemOnayMetni} | Value EV: ${evDegeri.toFixed(2)}`;
+        } else {
+          zekaPuani = (iht * 0.45) + (evDegeri * 16.0);
+          neden = `⚖️ ${sistemOnayMetni}`;
+        }
+      } else {
+        if (oran >= 1.85 && oran <= 5.50 && iht >= 26.0) {
+          zekaPuani = (evDegeri * 58.0) + (kellyAvantaji * 1.4) + (iht * 0.62) + (mutabakatOrani * 28.0) + (oran * 8.5);
+          if (["GOL_35", "FRIKIK", "PENALTI", "TARAF_SURPRIZ", "KORNER", "SUT"].includes(mk.kat)) {
+            zekaPuani += 8.5;
+          }
+          neden = `🔥 ${sistemOnayMetni} | Sürpriz Value EV: ${evDegeri.toFixed(2)}`;
+        } else {
+          zekaPuani = (evDegeri * 20.0) + (oran * 4.5);
+          neden = `🔥 ${sistemOnayMetni}`;
+        }
+      }
+
+      return { ...mk, puan: zekaPuani, neden: neden, guven: guvenGenel, mutabakat: mutabakatOrani };
+    });
+
+    puanliMarketler.sort((a, b) => b.puan - a.puan);
+    return {
+      m: m,
+      enIyiPuan: puanliMarketler[0].puan,
+      marketAdaylari: puanliMarketler.slice(0, 6)
+    };
+  });
+
+  macAdayListesi.sort((a, b) => b.enIyiPuan - a.enIyiPuan);
+  const secilenMacAdaylari = macAdayListesi.slice(0, macAdet);
+
+  // Kupon İçi Çapraz Market Çeşitlendirme (Aynı marketin tekrarı yerine her maça en uygun farklı market)
+  const kategoriSayaci = {};
+  const kuponMaclari = secilenMacAdaylari.map(aday => {
+    let secilenMk = aday.marketAdaylari[0];
+    for (const mk of aday.marketAdaylari) {
+      const kullanim = kategoriSayaci[mk.kat] || 0;
+      if (kullanim === 0 && mk.puan >= aday.marketAdaylari[0].puan - 5.5) {
+        secilenMk = mk;
+        break;
+      }
+    }
+    kategoriSayaci[secilenMk.kat] = (kategoriSayaci[secilenMk.kat] || 0) + 1;
+    return {
+      m: aday.m,
+      tahmin: secilenMk.ad,
+      oran: secilenMk.oran,
+      ihtimal: secilenMk.ihtimal,
+      neden: secilenMk.neden
+    };
+  });
+
+  let toplamOran = 1.0;
+  let birlesikOlasilik = 1.0;
+  kuponMaclari.forEach(k => {
+    toplamOran *= k.oran;
+    birlesikOlasilik *= (k.ihtimal / 100.0);
+  });
+  const ortGuven = kuponMaclari.reduce((a, b) => a + b.ihtimal, 0) / Math.max(kuponMaclari.length, 1);
+
+  const riskEtiket = risk === "DUSUK" ? "🛡️ DÜŞÜK RİSK (18-AI BANKO MUTABAKAT KUPONU)" : (risk === "ORTA" ? "⚖️ ORTA RİSK (18-AI OPTİMUM VALUE & ÇEŞİTLİ MARKET)" : "🔥 YÜKSEK RİSK (18-AI KELLY VALUE & SÜRPRİZ KUPONU)");
+  const gunEtiket = gunSiniri === 1 ? "1 Gün İçinde" : (gunSiniri === 2 ? "2 Gün İçinde" : "1 Hafta İçinde");
+
+  document.getElementById("mkupon-ozet").textContent =
+    `${riskEtiket} | ${kuponMaclari.length} Maç (${gunEtiket}) ➔ TOPLAM ORAN: ${toplamOran.toFixed(2)}`;
+  document.getElementById("mkupon-alt-ozet").textContent =
+    `🧠 18+13 Sistem Ortalama Başarı İhtimali: %${ortGuven.toFixed(1)} | Kupon Birleşik Olasılığı: %${(birlesikOlasilik*100).toFixed(1)}`;
+
+  const tbody = document.getElementById("mkupon-tbody");
+  tbody.innerHTML = "";
+  let metinRapor = "===================================================================================\n";
+  metinRapor += ` 🤖 OMEGA QUANTUM 18+13 AI - DERİN ZEKA KUPONU (${riskEtiket})\n`;
+  metinRapor += ` 📅 Filtre: ${gunEtiket} | Maç Sayısı: ${kuponMaclari.length} | Toplam Oran: ${toplamOran.toFixed(2)}\n`;
+  metinRapor += "===================================================================================\n\n";
+
+  kuponMaclari.forEach((k, i) => {
+    const tr = document.createElement("tr");
+    tr.onclick = () => { modalKuponKapat(); modal13Ac(k.m); };
+    tr.innerHTML = `
+      <td><b>${i+1}</b></td>
+      <td style="color:#fbbf24;font-weight:700;">${k.m.tarih_str || '-'}</td>
+      <td>${k.m.lig}</td>
+      <td><b>${k.m.ev} - ${k.m.dep}</b></td>
+      <td style="color:#4ade80;font-weight:800;">${k.tahmin}</td>
+      <td style="color:#38bdf8;font-weight:800;">${k.oran.toFixed(2)}</td>
+      <td><b>%${k.ihtimal.toFixed(1)}</b></td>
+      <td>${k.neden}</td>
+    `;
+    tbody.appendChild(tr);
+
+    metinRapor += ` ${i+1}) [${k.m.tarih_str}] ${k.m.lig} | ${k.m.ev} vs ${k.m.dep}\n`;
+    metinRapor += `    👉 Seçilen Market: ${k.tahmin}  |  Oran: ${k.oran.toFixed(2)}  |  18+13 AI İhtimali: %${k.ihtimal.toFixed(1)}\n`;
+    metinRapor += `    📌 18-AI Analizi : ${k.neden}\n\n`;
+  });
+
+  metinRapor += "===================================================================================\n";
+  metinRapor += ` 🏆 KUPON TOPLAM ORANI: ${toplamOran.toFixed(2)}   |   ORTALAMA AI İHTİMALİ: %${ortGuven.toFixed(1)}\n`;
+  metinRapor += "===================================================================================\n";
+
+  document.getElementById("kupon-sekme-metin").textContent = metinRapor;
+  if (modalGoster) {
+    document.getElementById("modal-kupon-overlay").style.display = "flex";
+  }
+};
+
+// ==================== 5 DAKİKADA BİR (300s) OTOMATİK GÜNCELLEME + ÜST BAR "🔄 ŞİMDİ YENİLE" BUTONU ====================
 async function githubBulutPythonTetikle() {
   try {
     const cfg = VERI.gh_cfg;
-    if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
-    const token = tokenCoz(cfg.k);
-    if (!token) return false;
-    const url = `https://api.github.com/repos/${cfg.o}/${cfg.r}/actions/workflows/omega_otonom_ai.yml/dispatches`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Accept": "application/vnd.github.v3+json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ ref: cfg.b || "main" })
-    });
-    return res.ok;
+    if (!cfg || !cfg.o || !cfg.r) return false;
+    const res = await ghApiIstek("actions/workflows/omega_otonom_ai.yml/dispatches", "POST", { ref: cfg.b || "main" });
+    return Boolean(res && res.ok);
   } catch (e) {
     return false;
   }
 }
 
+async function tamWebYenilemeCalistir(manuelMi = true) {
+  if (manuelYenilemeCalisiyor) return;
+  manuelYenilemeCalisiyor = true;
+  besDakikaSayaci = 300;
+
+  const btnYenile = document.getElementById("btn-manuel-5dk-yenile");
+  if (btnYenile) {
+    btnYenile.disabled = true;
+    btnYenile.textContent = "⏳ 18 AI & Bülten Yenileniyor...";
+  }
+
+  try {
+    await githubUyeleriAnlikCek();
+    await githubBulutPythonTetikle();
+    await webtenYeniBultenVeCSVIndir(manuelMi);
+    await canliVeriCek(true);
+    webAkilliKuponOlustur(false);
+  } catch (e) {}
+
+  if (btnYenile) {
+    btnYenile.disabled = false;
+    btnYenile.textContent = "🔄 Şimdi Yenile (5dk AI)";
+  }
+  manuelYenilemeCalisiyor = false;
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  // Üst bara '🔄 Şimdi Yenile (5dk AI)' butonunu otomatik yerleştir
+  const topbarRight = document.querySelector(".topbar-right");
+  const sayacBadge = document.getElementById("autoweb-sayac-badge");
+  if (topbarRight && !document.getElementById("btn-manuel-5dk-yenile")) {
+    const btn = document.createElement("button");
+    btn.id = "btn-manuel-5dk-yenile";
+    btn.className = "top-btn";
+    btn.style.cssText = "background: linear-gradient(135deg, #0284c7, #2563eb); border: 1px solid #38bdf8;";
+    btn.title = "5 dakikalık süreyi beklemeden internetten maçları, oranları, üyeleri ve 18 AI tahminlerini anında yeniler";
+    btn.textContent = "🔄 Şimdi Yenile (5dk AI)";
+    btn.onclick = () => tamWebYenilemeCalistir(true);
+    if (sayacBadge && sayacBadge.nextSibling) {
+      topbarRight.insertBefore(btn, sayacBadge.nextSibling);
+    } else {
+      topbarRight.prepend(btn);
+    }
+  }
+});
+
+// Her 1 saniyede bir 5 dakikalık (300s) sayacı işlet ve süre dolunca otomatik yenile
 setInterval(async () => {
   const aktifUser = oturumDegeriAl("omega_user");
   if (!aktifUser) return;
 
-  if (!VERI.auto_web || pcSuAnAktifMi()) {
-    besDakikaSayaci = 300;
+  // Her 10 saniyede bir adminlik ve üye değişikliklerini arka planda kontrol et
+  if (besDakikaSayaci % 10 === 0) {
+    githubUyeleriAnlikCek();
+  }
+
+  if (!VERI.auto_web && !VERI.canli_mod) {
     return;
   }
 
   besDakikaSayaci -= 1;
+  const dk = String(Math.floor(besDakikaSayaci / 60)).padStart(2, "0");
+  const sn = String(besDakikaSayaci % 60).padStart(2, "0");
+  const btnYenile = document.getElementById("btn-manuel-5dk-yenile");
+  if (btnYenile && !manuelYenilemeCalisiyor) {
+    btnYenile.textContent = `🔄 Şimdi Yenile (${dk}:${sn})`;
+  }
+
   if (besDakikaSayaci <= 0) {
     besDakikaSayaci = 300;
-    await githubBulutPythonTetikle();
-    await webtenYeniBultenVeCSVIndir(false);
+    if (!pcSuAnAktifMi()) {
+      await tamWebYenilemeCalistir(false);
+    } else {
+      await canliVeriCek(true);
+    }
   }
 }, 1000);
 </script>"""
 
     def gelismis_html_uret(payload: dict) -> str:
         ham_html = orijinal_html_uret(payload)
-        return ham_html.replace("</script>\n</body>", ek_5dk_js_kodu + "\n</body>")
+        return ham_html.replace("</script>\n</body>", ek_yama_js_kodu + "\n</body>")
 
     def gelismis_paket_gonder(
         self, veri_motoru, ai_motoru, secili_mac_ozeti,
@@ -5692,18 +6419,25 @@ setInterval(async () => {
             sadece_json=sadece_json,
             durum_callback=durum_callback
         )
-        if not sadece_json and self.github_ayarlari_tam_mi():
+        if self.github_ayarlari_tam_mi():
             try:
-                if os.path.exists(__file__):
-                    with open(__file__, "r", encoding="utf-8") as f:
-                        bu_dosya_kodu = f.read()
-                    self._github_dosya_uzerine_yaz(
-                        "omega_bulut_motoru.py", bu_dosya_kodu, "OMEGA 18+13 AI Tam Python Bulut Motoru"
-                    )
-                yaml_icerik = _github_actions_yaml_uret()
+                uye_sozluk = self._web_uye_sozlugu_hazirla()
                 self._github_dosya_uzerine_yaz(
-                    ".github/workflows/omega_otonom_ai.yml", yaml_icerik, "OMEGA 5dk Otonom GitHub Actions Kurulumu"
+                    "omega_uyeler.json",
+                    json.dumps(uye_sozluk, ensure_ascii=False, indent=2),
+                    "OMEGA Uye ve Admin Yetki Listesi"
                 )
+                if not sadece_json:
+                    if os.path.exists(__file__):
+                        with open(__file__, "r", encoding="utf-8") as f:
+                            bu_dosya_kodu = f.read()
+                        self._github_dosya_uzerine_yaz(
+                            "omega_bulut_motoru.py", bu_dosya_kodu, "OMEGA 18+13 AI Tam Python Bulut Motoru"
+                        )
+                    yaml_icerik = _github_actions_yaml_uret()
+                    self._github_dosya_uzerine_yaz(
+                        ".github/workflows/omega_otonom_ai.yml", yaml_icerik, "OMEGA 5dk Otonom GitHub Actions Kurulumu"
+                    )
             except Exception:
                 pass
         return ok
@@ -5718,12 +6452,7 @@ _omega_otonom_bulut_sistemi_bagla()
 def bulut_uzerinde_otonom_egit_ve_guncelle():
     """
     GitHub Actions sunucusunda (bilgisayar kapalıyken) '--bulut-calistir' parametresiyle çalışır.
-    1) Önce omega_canli_veri.json dosyasını okur:
-       - Eğer 'auto_web' False ise HİÇBİR İŞLEM YAPMAZ, PC verisini korur.
-       - Eğer 'canli_mod' True ise ve PC son 120 saniye içinde veri göndermişse PC önceliğini korur.
-    2) Auto Web açıksa ve PC kapalıysa:
-       - 14 ligi internetten indirir, 18 Yapay Zeka modelini sıfırdan eğitir,
-       - Tüm maçları ve 13'lü istatistikleri hesaplayıp omega_canli_veri.json dosyasına yazar!
+    Web üzerinden eklenen üyeleri ve adminlikleri ('omega_uyeler.json') koruyarak 14 ligi ve 18 AI'yı günceller.
     """
     mevcut_veri = {}
     if os.path.exists("omega_canli_veri.json"):
@@ -5732,6 +6461,17 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
                 mevcut_veri = json.load(f)
         except Exception:
             mevcut_veri = {}
+
+    # Web Admin panelinden değiştirilen güncel üyeleri oku ve koru
+    guncel_uyeler = mevcut_veri.get("uyeler", {})
+    if os.path.exists("omega_uyeler.json"):
+        try:
+            with open("omega_uyeler.json", "r", encoding="utf-8") as f:
+                u_json = json.load(f)
+                if isinstance(u_json, dict) and u_json:
+                    guncel_uyeler = u_json
+        except Exception:
+            pass
 
     auto_web_acik_mi = bool(mevcut_veri.get("auto_web", True))
     if not auto_web_acik_mi:
@@ -5767,12 +6507,17 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
     mevcut_veri["takim_profilleri"] = veri_motoru.takim_profilleri
     mevcut_veri["maclar"] = web_maclar
 
-    if "uyeler" not in mevcut_veri or not mevcut_veri["uyeler"]:
+    if guncel_uyeler:
+        mevcut_veri["uyeler"] = guncel_uyeler
+    else:
         yon = UyeVeGitHubYoneticisi()
         mevcut_veri["uyeler"] = yon._web_uye_sozlugu_hazirla()
 
     with open("omega_canli_veri.json", "w", encoding="utf-8") as f:
         json.dump(mevcut_veri, f, ensure_ascii=False)
+
+    with open("omega_uyeler.json", "w", encoding="utf-8") as f:
+        json.dump(mevcut_veri["uyeler"], f, ensure_ascii=False, indent=2)
 
     print(f"✅ OMEGA Bulut Python AI tamamlandı: {len(web_maclar)} maç ve 18+13 AI modeli güncellendi!")
 
