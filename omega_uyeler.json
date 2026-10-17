@@ -5,10 +5,10 @@
     "admin_mi": true,
     "kayit_tarihi": "17.10.2026 00:14"
   },
-  "umit": {
-    "sifre_hash": "3991f18e",
-    "sifre_maskeli": "61626d70332c203a",
-    "admin_mi": false,
-    "kayit_tarihi": "17.10.2026 02:22"
+  "ardaa": {
+    "sifre_hash": "7c94327d",
+    "sifre_maskeli": "26213f2e",
+    "admin_mi": true,
+    "kayit_tarihi": "17.10.2026 22:40"
   }
 }
