@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "19.10.2026 20:14:36",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (DUSUK | 3 Maç | Oran: 1.83)"
+  },
+  {
     "tarih": "19.10.2026 20:14:12",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1451,15 +1460,5 @@
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "🔥 13'lü İstatistik Penceresini Açtı: Sunderland - Sheffield United"
-  },
-  {
-    "tarih": "17.10.2026 14:16:35",
-    "kullanici": "arda",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x735",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Maç İnceledi: Sunderland - Sheffield United"
   }
 ]
