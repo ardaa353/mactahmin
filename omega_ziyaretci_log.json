@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "20.10.2026 01:16:01",
+    "kullanici": "Efe",
+    "ip": "176.239.200.30",
+    "konum": "Kocasinan / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
+    "islem": "✅ Siteye Giriş Yaptı (Canlı GitHub Python Modu)"
+  },
+  {
     "tarih": "20.10.2026 00:57:57",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1435,14 +1444,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "⚙️ 👑 ADMİN YETKİSİ VERİLDİ (Tkinter)"
-  },
-  {
-    "tarih": "17.10.2026 16:06:52",
-    "kullanici": "Yönetici (Admin)",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "🚀 OMEGA Quantum AI v4.0 Ana Motoru Başlatıldı"
   }
 ]
