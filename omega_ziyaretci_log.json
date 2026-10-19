@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "20.10.2026 00:57:57",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🔥 13'lü İstatistik Penceresi Açıldı: Napoli - Bodo/Glimt"
+  },
+  {
     "tarih": "20.10.2026 00:57:49",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1435,15 +1444,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🚀 OMEGA Quantum AI v4.0 Ana Motoru Başlatıldı"
-  },
-  {
-    "tarih": "17.10.2026 05:53:01",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "72.153.230.168",
-    "konum": "San Jose / United States",
-    "isp": "Microsoft Corporation",
-    "ekran": "1920x1080",
-    "cihaz": "Win32 | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.3",
-    "islem": "Giriş Ekranını Açtı"
   }
 ]
