@@ -14,6 +14,7 @@ import re
 import threading
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 if "--bulut-calistir" not in sys.argv:
     import tkinter as tk
     from tkinter import ttk, messagebox
@@ -131,6 +132,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   omega_ai_hesapla:
@@ -138,6 +140,8 @@ jobs:
     steps:
       - name: 1/4 - GitHub Ubuntu Sunucusu Hazirlaniyor ve Kod Cekiliyor
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 2/4 - Python 3.11 ve Yapay Zeka Cekirdegi Yukleniyor
         uses: actions/setup-python@v5
@@ -164,11 +168,13 @@ jobs:
         run: |
           git config --local user.email "omega-ai-bot@users.noreply.github.com"
           git config --local user.name "OMEGA Quantum Cloud AI"
-          git pull --rebase origin main || true
           git add omega_canli_veri.json omega_uyeler.json || true
           git diff --staged --quiet || git commit -m "⚡ OMEGA Anlik Bulut Python AI Sonucu (${{ github.event.inputs.istek_id }})"
-          git push || true
+          git pull --rebase -X theirs origin ${{ github.ref_name }} || true
+          git push origin HEAD:${{ github.ref_name }} || git push --force || true
 """
+
+
 class PlatformAyarlari:
     """Seçilen işletim sistemine (MacBook M2, Windows veya GitHub Bulut Sunucusu) göre donanım ve AI güç ayarlarını yönetir."""
     def __init__(self, platform_tipi="MAC"):
@@ -204,8 +210,8 @@ class PlatformAyarlari:
 class UyeVeGitHubYoneticisi:
     """
     1) Üye Kayıt / Silme ve ADMİN YETKİSİ (Admin Tiki) işlemlerini yönetir, anında GitHub API'ye senkronize eder.
-    2) Web arayüzünde hiçbir statik maç/kupon verisi saklamadan, tüm işlemleri Canlı Loading Ekranı eşliğinde
-       doğrudan GitHub'daki Python motoruna (omega_bulut_motoru.py) yaptıran interaktif index.html üretir.
+    2) Tüm işlemleri Canlı Loading Ekranı eşliğinde doğrudan GitHub'daki Python motoruna
+       (omega_bulut_motoru.py) yaptıran interaktif index.html üretir.
     """
     DOSYA_ADI = "omega_sistem_verisi.json"
     YEREL_LOG_DOSYASI = "omega_ziyaretci_log_yerel.json"
@@ -624,10 +630,9 @@ class UyeVeGitHubYoneticisi:
         sadece_json=False, durum_callback=None
     ):
         """
-        GitHub'da kalıcı maç/kupon verisi tutmaz!
-        Yalnızca web arayüzünü (index.html), üye/admin listesini (omega_uyeler.json),
-        Python bulut motorunu (omega_bulut_motoru.py) ve GitHub Actions iş akışını (.github/workflows/omega_otonom_ai.yml)
-        GitHub'a kurar. Maç ve kupon analizleri webde Loading ekranında anlık olarak GitHub Python tarafından üretilir.
+        Web arayüzünü (index.html), üye/admin listesini (omega_uyeler.json),
+        canlı veri kanalını (omega_canli_veri.json), Python bulut motorunu (omega_bulut_motoru.py)
+        ve GitHub Actions iş akışını (.github/workflows/omega_otonom_ai.yml) GitHub'a kurar.
         """
         if not self.gonderim_kilidi.acquire(blocking=False):
             return False
@@ -645,7 +650,6 @@ class UyeVeGitHubYoneticisi:
             web_uyeler = self._web_uye_sozlugu_hazirla()
             masked_token = self.token_gizle(self.veriler["github_token"])
 
-            # GitHub'da önceden hesaplanmış statik maç/kupon tutulmaz (maclar: [])
             web_maclar = []
             for m in veri_motoru.gelecek_maclar:
                 if int(m.get("unix_zamani", 0)) < unix_ts - 1800:
@@ -654,10 +658,41 @@ class UyeVeGitHubYoneticisi:
                 detay_13 = ai_motoru.onuc_sistem_detayli_istatistik_analizi(m, analiz)
                 web_maclar.append(self._mac_analizini_json_yap(m, analiz, detay_13))
 
-            bos_baslangic_payload = {
+            k_sonuc = ai_motoru.akilli_kupon_olustur(
+                veri_motoru.gelecek_maclar, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=7
+            )
+            anlik_kupon_sonucu = {
+                "risk_seviyesi": k_sonuc["risk_seviyesi"],
+                "mac_sayisi": k_sonuc["mac_sayisi"],
+                "gun_siniri": k_sonuc["gun_siniri"],
+                "toplam_oran": k_sonuc["toplam_oran"],
+                "ortalama_ihtimal": k_sonuc["ortalama_ihtimal"],
+                "birlesik_olasilik": k_sonuc["birlesik_olasilik"],
+                "maclar": [
+                    {
+                        "tarih_str": x["tarih_str"],
+                        "lig": x["lig"],
+                        "ev": x["mac"]["ev"],
+                        "dep": x["mac"]["dep"],
+                        "karsilasma": x["karsilasma"],
+                        "tahmin": x["tahmin"],
+                        "oran": x["oran"],
+                        "ihtimal": x["ihtimal"],
+                        "neden": x["neden"],
+                        "mac_detay": self._mac_analizini_json_yap(
+                            x["mac"],
+                            ai_motoru.tam_analiz_yap(x["mac"]),
+                            ai_motoru.onuc_sistem_detayli_istatistik_analizi(x["mac"])
+                        )
+                    }
+                    for x in k_sonuc["maclar"]
+                ]
+            }
+
+            baslangic_payload = {
                 "bulten_versiyon": 6,
                 "istek_id": "kurulum_paketi",
-                "guncelleme_tarihi": simdi_str + " (18+10 Python AI)",
+                "guncelleme_tarihi": simdi_str + f" ({len(web_maclar)} Canlı Maç | 18+10 Python AI)",
                 "timestamp": unix_ts,
                 "canli_mod": False,
                 "auto_web": True,
@@ -669,11 +704,12 @@ class UyeVeGitHubYoneticisi:
                     "k": masked_token
                 },
                 "takim_profilleri": veri_motoru.takim_profilleri,
+                "anlik_kupon_sonucu": anlik_kupon_sonucu,
                 "maclar": web_maclar
             }
 
-            json_icerik = json.dumps(bos_baslangic_payload, ensure_ascii=False)
-            html_icerik = self._interaktif_html_uret(bos_baslangic_payload)
+            json_icerik = json.dumps(baslangic_payload, ensure_ascii=False)
+            html_icerik = self._interaktif_html_uret(baslangic_payload)
 
             try:
                 with open("omega_uyeler.json", "w", encoding="utf-8") as f:
@@ -700,7 +736,7 @@ class UyeVeGitHubYoneticisi:
             )
 
             ok_json, msg_json = self._github_dosya_uzerine_yaz(
-                "omega_canli_veri.json", json_icerik, f"OMEGA Anlik Gecici Kanal Sifirlandi ({simdi_str})"
+                "omega_canli_veri.json", json_icerik, f"OMEGA Canli Veri Paketi ({simdi_str})"
             )
 
             if not sadece_json:
@@ -1052,7 +1088,7 @@ class UyeVeGitHubYoneticisi:
   <div class="login-wrapper">
     <div class="login-logo">⚡</div>
     <h1>OMEGA QUANTUM AI v6.0</h1>
-    <div class="subtitle">%100 Canlı GitHub Python Yapay Zeka Motoru (Sıfır Veri Depolama)</div>
+    <div class="subtitle">%100 Canlı GitHub Python Yapay Zeka Motoru</div>
 
     <form id="omega-login-form" onsubmit="event.preventDefault(); girisKontrol(); return false;">
       <div class="input-group">
@@ -1063,13 +1099,13 @@ class UyeVeGitHubYoneticisi:
         <label for="inp-pass">ŞİFRE</label>
         <input type="password" id="inp-pass" class="input-field" placeholder="Şifrenizi girin..." autocomplete="current-password" required>
       </div>
-      <button type="submit" class="login-submit-btn" onclick="event.preventDefault(); girisKontrol();">🔐 SİSTEME GİRİŞ YAP</button>
+      <button type="submit" class="login-submit-btn">🔐 SİSTEME GİRİŞ YAP</button>
     </form>
 
     <div id="login-err" class="login-error-box"></div>
 
     <div class="login-footer">
-      🛡️ Giriş yaptığınızda, 5 dakikada bir veya butonlara bastığınızda <b>GitHub'daki gerçek Python kodu</b> canlı Loading ekranında çalışır; önceden statik veri tutulmaz.
+      🛡️ Giriş yaptığınızda, 20 dakikada bir veya butonlara bastığınızda <b>GitHub'daki gerçek Python kodu</b> canlı Loading ekranında çalışır.
     </div>
   </div>
 </div>
@@ -1125,7 +1161,7 @@ class UyeVeGitHubYoneticisi:
 <!-- YAPAY ZEKA AKILLI KUPON PENCERESİ -->
 <div id="modal-kupon-overlay" class="modal-overlay" onclick="if(event.target===this) modalKuponKapat();">
   <div class="modal-box" style="border-color:#c084fc;">
-    <div class="modal-header" style="border-bottom-color:#933ea;">
+    <div class="modal-header" style="border-bottom-color:#9333ea;">
       <h3 id="mkupon-baslik" style="color:#e879f9;">🤖 GITHUB PYTHON 18+10 YAPAY ZEKA & 1.000 DENEME AKILLI KUPON MOTORU</h3>
       <button class="modal-close-btn" onclick="modalKuponKapat()">✖ KAPAT</button>
     </div>
@@ -1227,7 +1263,7 @@ class UyeVeGitHubYoneticisi:
     <div class="topbar-title">⚡ OMEGA AI v6.0 | %100 CANLI GITHUB PYTHON MOTORU (18+10 AI & 1.000 DENEME OPTİMİZE)</div>
     <div class="topbar-right">
       <span id="status-badge" class="badge badge-autoweb"></span>
-      <span id="autoweb-sayac-badge" style="color:#fbbf24; font-size:12px; font-weight:800;">🔄 300s</span>
+      <span id="autoweb-sayac-badge" style="color:#fbbf24; font-size:12px; font-weight:800;">🔄 1200s</span>
       <button class="top-btn fetch-btn" onclick="webtenYeniBultenVeCSVIndir(true)">🌐 Şimdi Yenile (GitHub Python İle Maçları Çek & Eğit)</button>
       <button class="top-btn deep-btn" onclick="aktifMacIcin13PenceresiAc()">🔍 13'lü İstatistik</button>
       <button class="top-btn kupon-btn" onclick="webAkilliKuponOlustur(true)">🎫 AI Kuponu (GitHub Python)</button>
@@ -1364,205 +1400,6 @@ let aramaMetniFiltre = "";
 let ziyaretciBilgisi = { ip: "Taranıyor...", konum: "Bilinmiyor", isp: "-", cihaz: navigator.userAgent };
 let logKuyrugu = Promise.resolve();
 let tikSayaci = { anahtar: "", adet: 0, zaman: 0 };
-let webKalanSaniye = 300; // 5 dakikada bir (300 sn) tam GitHub Python yenilemesi
-let sonPcTimestamp = VERI.timestamp || 0;
-let githubPythonCalisiyorMu = false;
-let bellekOturum = { user: "", hash: "" };
-
-const ONCELIKLI_LIG_SIRASI = [
-  "Türkiye Süper Lig",
-  "Türkiye 1. Lig (Alt Lig)",
-  "UEFA Şampiyonlar Ligi",
-  "UEFA Avrupa Ligi",
-  "UEFA Konferans Ligi",
-  "İngiltere Premier Lig",
-  "İspanya La Liga",
-  "İtalya Serie A",
-  "Almanya Bundesliga",
-  "Fransa Ligue 1",
-  "Hollanda Eredivisie",
-  "Portekiz Süper Ligi",
-  "İngiltere Championship (Alt Lig)",
-  "Almanya Bundesliga 2 (Alt Lig)",
-  "İspanya La Liga 2 (Alt Lig)",
-  "İtalya Serie B (Alt Lig)"
-];
-
-function oturumDegeriAl(anahtar) {
-  try { const v = sessionStorage.getItem(anahtar); if (v) return v; } catch (e) {}
-  try { const v2 = localStorage.getItem(anahtar); if (v2) return v2; } catch (e) {}
-  return anahtar === "omega_user" ? bellekOturum.user : bellekOturum.hash;
-}
-
-function oturumDegeriYaz(anahtar, deger) {
-  if (anahtar === "omega_user") bellekOturum.user = deger;
-  if (anahtar === "omega_hash") bellekOturum.hash = deger;
-  try { sessionStorage.setItem(anahtar, deger); } catch (e) {}
-  try { localStorage.setItem(anahtar, deger); } catch (e) {}
-}
-
-function oturumDegeriSil() {
-  bellekOturum = { user: "", hash: "" };
-  try { sessionStorage.removeItem("omega_user"); sessionStorage.removeItem("omega_hash"); } catch (e) {}
-  try { localStorage.removeItem("omega_user"); localStorage.removeItem("omega_hash"); } catch (e) {}
-}
-
-function koduHashle(str) {
-  let h = 5381;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) {
-    h = (((h << 5) + h) + s.charCodeAt(i)) >>> 0;
-  }
-  return h.toString(16).padStart(8, "0");
-}
-
-function tokenGizle(str) {
-  if (!str) return "";
-  const key = "OMEGA_QUANTUM_2026_KEY";
-  const hexParcalar = [];
-  for (let i = 0; i < str.length; i++) {
-    const xorVal = str.charCodeAt(i) ^ key.charCodeAt(i % key.length);
-    hexParcalar.push(xorVal.toString(16).padStart(2, "0"));
-  }
-  return hexParcalar.reverse().join("");
-}
-
-function tokenCoz(maskedHex) {
-  if (!maskedHex) return "";
-  try {
-    const key = "OMEGA_QUANTUM_2026_KEY";
-    const pairs = [];
-    for (let i = 0; i < maskedHex.length; i += 2) pairs.push(maskedHex.substr(i, 2));
-    pairs.reverse();
-    let out = "";
-    for (let i = 0; i < pairs.length; i++) {
-      const val = parseInt(pairs[i], 16) ^ key.charCodeAt(i % key.length);
-      out += String.fromCharCode(val);
-    }
-    return out;
-  } catch (e) { return ""; }
-}
-
-function varsayilanAdminGarantiEt() {
-  if (!VERI) VERI = {};
-  if (!VERI.uyeler || typeof VERI.uyeler !== "object") VERI.uyeler = {};
-  if (Object.keys(VERI.uyeler).length === 0) {
-    VERI.uyeler["admin"] = {
-      sifre_hash: koduHashle("1234"),
-      sifre_maskeli: tokenGizle("1234"),
-      admin_mi: true,
-      kayit_tarihi: "-"
-    };
-  }
-}
-varsayilanAdminGarantiEt();
-
-async function githubUyeListesiCek() {
-  try {
-    const cfg = VERI.gh_cfg;
-    if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
-    const token = tokenCoz(cfg.k);
-    if (!token) return false;
-    const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_uyeler.json?ref=${cfg.b}&t=${Date.now()}`;
-    const res = await fetch(apiUrl, {
-      headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.v3+json" },
-      cache: "no-store"
-    });
-    if (res.ok) {
-      const d = await res.json();
-      if (d && d.content) {
-        const temizB64 = d.content.replace(/\s/g, "");
-        const cozulmus = decodeURIComponent(escape(atob(temizB64)));
-        const uyeObj = JSON.parse(cozulmus);
-        if (uyeObj && typeof uyeObj === "object") {
-          VERI.uyeler = uyeObj;
-          varsayilanAdminGarantiEt();
-          return true;
-        }
-      }
-    }
-  } catch (e) {}
-  return false;
-}
-
-async function githubUyeListesiKaydet(commitMesaji) {
-  try {
-    const cfg = VERI.gh_cfg;
-    if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
-    const token = tokenCoz(cfg.k);
-    if (!token) return false;
-    const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_uyeler.json`;
-    const headers = {
-      "Authorization": "Bearer " + token,
-      "Accept": "application/vnd.github.v3+json",
-      "Content-Type": "application/json"
-    };
-    let sha = null;
-    const getRes = await fetch(apiUrl + `?ref=${cfg.b}&t=${Date.now()}`, { headers, cache: "no-store" });
-    if (getRes.ok) {
-      const getJson = await getRes.json();
-      sha = getJson.sha;
-    }
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(VERI.uyeler, null, 2))));
-    const body = { message: commitMesaji || "Uye listesi guncellendi", content: b64, branch: cfg.b };
-    if (sha) body.sha = sha;
-    const putRes = await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(body) });
-    return putRes.ok;
-  } catch (e) { return false; }
-}
-
-async function githubGeciciVeriyiTemizle() {
-  // Tarayıcı anlık sonucu aldıktan sonra GitHub'da eski maç/kupon verisi tutulmaması için temizler
-  try {
-    const cfg = VERI.gh_cfg;
-    if (!cfg || !cfg.o || !cfg.r || !cfg.k) return;
-    const token = tokenCoz(cfg.k);
-    if (!token) return;
-    const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_canli_veri.json`;
-    const headers = {
-      "Authorization": "Bearer " + token,
-      "Accept": "application/vnd.github.v3+json",
-      "Content-Type": "application/json"
-    };
-    const getRes = await fetch(apiUrl + `?ref=${cfg.b}&t=${Date.now()}`, { headers, cache: "no-store" });
-    if (!getRes.ok) return;
-    const getJson = await getRes.json();
-    const bosPaket = {
-      bulten_versiyon: 6,
-      istek_id: "temizlendi",
-      guncelleme_tarihi: "Anlık Bellek Temizlendi (Yeni İşlem Bekleniyor)",
-      timestamp: Math.floor(Date.now() / 1000),
-      canli_mod: false,
-      auto_web: true,
-      uyeler: VERI.uyeler || {},
-      gh_cfg: VERI.gh_cfg || {},
-      maclar: []
-    };
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(bosPaket))));
-    await fetch(apiUrl, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({
-        message: "Anlik veri teslim alindi - gecici bellek sifirlandi",
-        content: b64,
-        branch: cfg.b,
-        sha: getJson.sha
-      })
-    });
-  } catch (e) {}
-}
-
-async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}) {
-  if (githubPythonCalisiyorMu) return false;
-  const cfg = VERI.gh_cfg;
-  if (!cfg || !cfg.o || !cfg.r || !cfg.k) {
-    alert("GitHub Python Bulut Motorunu çalıştırmak için masaüstü uygulamasından GitHub Token ayarlarını bir kez kaydetmiş olmanız gerekir!");
-    return false;
-  }
-  const token = tokenCoz(cfg.k);
-  if (!token) return false;
-
-  githubPythonCalisiyorMu = true;
 let webKalanSaniye = 1200; // 20 dakikada bir (1200 sn) tam GitHub Python yenilemesi
 let sonPcTimestamp = VERI.timestamp || 0;
 let githubPythonCalisiyorMu = false;
@@ -1662,7 +1499,7 @@ async function githubUyeListesiCek() {
     if (!cfg || !cfg.o || !cfg.r || !cfg.k) return false;
     const token = tokenCoz(cfg.k);
     if (!token) return false;
-    const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_uyeler.json?ref=${cfg.b}&t=${Date.now()}`;
+    const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_uyeler.json?ref=${cfg.b || 'main'}&t=${Date.now()}`;
     const res = await fetch(apiUrl, {
       headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.v3.raw" },
       cache: "no-store"
@@ -1692,13 +1529,13 @@ async function githubUyeListesiKaydet(commitMesaji) {
       "Content-Type": "application/json"
     };
     let sha = null;
-    const getRes = await fetch(apiUrl + `?ref=${cfg.b}&t=${Date.now()}`, { headers, cache: "no-store" });
+    const getRes = await fetch(apiUrl + `?ref=${cfg.b || 'main'}&t=${Date.now()}`, { headers, cache: "no-store" });
     if (getRes.ok) {
       const getJson = await getRes.json();
       sha = getJson.sha;
     }
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(VERI.uyeler, null, 2))));
-    const body = { message: commitMesaji || "Uye listesi guncellendi", content: b64, branch: cfg.b };
+    const body = { message: commitMesaji || "Uye listesi guncellendi", content: b64, branch: cfg.b || "main" };
     if (sha) body.sha = sha;
     const putRes = await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(body) });
     return putRes.ok;
@@ -1708,26 +1545,27 @@ async function githubUyeListesiKaydet(commitMesaji) {
 // 1 MB SINIRINA TAKILMADAN GITHUB'DAN DOĞRUDAN RAW VERİ OKUYAN FONKSİYON
 async function githubRawCanliVeriOku() {
   const cfg = VERI.gh_cfg;
-  if (!cfg || !cfg.o || !cfg.r || !cfg.k) return null;
-  const token = tokenCoz(cfg.k);
-  if (!token) return null;
-
-  try {
-    const veriUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_canli_veri.json?ref=${cfg.b || 'main'}&t=${Date.now()}`;
-    const vRes = await fetch(veriUrl, {
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Accept": "application/vnd.github.v3.raw"
-      },
-      cache: "no-store"
-    });
-    if (vRes.ok) {
-      const txt = await vRes.text();
-      if (txt && txt.trim().startsWith("{")) {
-        return JSON.parse(txt);
-      }
+  if (cfg && cfg.o && cfg.r && cfg.k) {
+    const token = tokenCoz(cfg.k);
+    if (token) {
+      try {
+        const veriUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_canli_veri.json?ref=${cfg.b || 'main'}&t=${Date.now()}`;
+        const vRes = await fetch(veriUrl, {
+          headers: {
+            "Authorization": "Bearer " + token,
+            "Accept": "application/vnd.github.v3.raw"
+          },
+          cache: "no-store"
+        });
+        if (vRes.ok) {
+          const txt = await vRes.text();
+          if (txt && txt.trim().startsWith("{")) {
+            return JSON.parse(txt);
+          }
+        }
+      } catch (e) {}
     }
-  } catch (e) {}
+  }
 
   try {
     const rawRes = await fetch(`omega_canli_veri.json?t=${Date.now()}`, { cache: "no-store" });
@@ -1807,7 +1645,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
     if (barEl) barEl.style.width = "15%";
 
     let tamamlandi = false;
-    // 110 deneme x 3 sn = 5.5 dakika maksimum bekleme toleransı (hiçbir zaman erken kapanmaz)
+    // 110 deneme x 3 sn = 5.5 dakika maksimum bekleme toleransı
     for (let deneme = 0; deneme < 110; deneme++) {
       await new Promise(r => setTimeout(r, 3000));
 
@@ -1838,8 +1676,12 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
       // 1 MB sınırına takılmayan RAW okuyucu ile kontrol et
       const yeniVeri = await githubRawCanliVeriOku();
       if (yeniVeri && yeniVeri.maclar && yeniVeri.maclar.length > 0) {
-        if (yeniVeri.istek_id === istekId || (yeniVeri.timestamp && yeniVeri.timestamp >= baslangicTs)) {
+        if (yeniVeri.istek_id === istekId || (yeniVeri.timestamp && yeniVeri.timestamp >= baslangicTs && yeniVeri.istek_id !== "kurulum_paketi")) {
+          const korunanCfg = VERI.gh_cfg;
+          const korunanUyeler = VERI.uyeler;
           VERI = yeniVeri;
+          if (!VERI.gh_cfg || !VERI.gh_cfg.k) VERI.gh_cfg = korunanCfg;
+          if (!VERI.uyeler || Object.keys(VERI.uyeler).length === 0) VERI.uyeler = korunanUyeler;
           sonPcTimestamp = yeniVeri.timestamp || Math.floor(Date.now() / 1000);
           if (barEl) barEl.style.width = "100%";
           if (stepEl) stepEl.textContent = `✅ GitHub Python Tamamlandı! (${yeniVeri.maclar.length} Gerçek Maç Ekrana Aktarılıyor...)`;
@@ -1859,10 +1701,11 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
         analiziEkranaBas(VERI.ozel_mac_sonucu);
       }
     } else {
-      // Eğer önceki çalışmadan hazır veri varsa ekran boş kalmasın diye onu yükle
       const yedekVeri = await githubRawCanliVeriOku();
       if (yedekVeri && yedekVeri.maclar && yedekVeri.maclar.length > 0) {
+        const korunanCfg = VERI.gh_cfg;
         VERI = yedekVeri;
+        if (!VERI.gh_cfg || !VERI.gh_cfg.k) VERI.gh_cfg = korunanCfg;
         arayuzuBaslat();
       }
     }
@@ -1876,6 +1719,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
     if (overlay) overlay.style.display = "none";
   }
 }
+
 async function ziyaretciIpBilgisiTopla() {
   try {
     const r = await fetch("https://ipwho.is/");
@@ -1905,7 +1749,7 @@ function tkinterLogGonder(kullanici, islem_detayi) {
       };
       let mevcutListe = [];
       let sha = null;
-      const getRes = await fetch(apiUrl + `?ref=${cfg.b}&t=${Date.now()}`, { headers, cache: "no-store" });
+      const getRes = await fetch(apiUrl + `?ref=${cfg.b || 'main'}&t=${Date.now()}`, { headers, cache: "no-store" });
       if (getRes.ok) {
         const getJson = await getRes.json();
         sha = getJson.sha;
@@ -1925,7 +1769,7 @@ function tkinterLogGonder(kullanici, islem_detayi) {
       });
       if (mevcutListe.length > 150) mevcutListe = mevcutListe.slice(0, 150);
       const b64Icerik = btoa(unescape(encodeURIComponent(JSON.stringify(mevcutListe, null, 2))));
-      const body = { message: "Ziyaretci Log: " + kullanici, content: b64Icerik, branch: cfg.b };
+      const body = { message: "Ziyaretci Log: " + kullanici, content: b64Icerik, branch: cfg.b || "main" };
       if (sha) body.sha = sha;
       await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify(body) });
     } catch (e) {}
@@ -2056,7 +1900,7 @@ async function webAdminLoglariYenile() {
     const cfg = VERI.gh_cfg;
     if (cfg && cfg.o && cfg.r && cfg.k) {
       const token = tokenCoz(cfg.k);
-      const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_ziyaretci_log.json?ref=${cfg.b}&t=${Date.now()}`;
+      const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_ziyaretci_log.json?ref=${cfg.b || 'main'}&t=${Date.now()}`;
       const res = await fetch(apiUrl, {
         headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.v3+json" },
         cache: "no-store"
@@ -2086,9 +1930,9 @@ async function webAdminLoglariTemizle() {
     const token = tokenCoz(cfg.k);
     const apiUrl = `https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/omega_ziyaretci_log.json`;
     const headers = { "Authorization": "Bearer " + token, "Accept": "application/vnd.github.v3+json", "Content-Type": "application/json" };
-    const getRes = await fetch(apiUrl + `?ref=${cfg.b}`, { headers, cache: "no-store" });
+    const getRes = await fetch(apiUrl + `?ref=${cfg.b || 'main'}`, { headers, cache: "no-store" });
     const getJson = getRes.ok ? await getRes.json() : {};
-    await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify({ message: "Loglar temizlendi", content: btoa("[]"), branch: cfg.b, sha: getJson.sha }) });
+    await fetch(apiUrl, { method: "PUT", headers, body: JSON.stringify({ message: "Loglar temizlendi", content: btoa("[]"), branch: cfg.b || "main", sha: getJson.sha }) });
     webAdminLoglariYenile();
   } catch (e) {}
 }
@@ -2150,17 +1994,28 @@ async function oturumuAc(kullanici) {
   document.getElementById("login-overlay").style.display = "none";
   document.getElementById("main-app").style.display = "flex";
   adminButonunuGuncelle();
-  // GitHub'da önceden veri tutulmadığı için giriş yapıldığı anda canlı Loading ekranı ile GitHub Python'u çalıştır
+
+  const canliVeri = await githubRawCanliVeriOku();
+  if (canliVeri && canliVeri.maclar && canliVeri.maclar.length > 0) {
+    const korunanCfg = VERI.gh_cfg;
+    const korunanUyeler = VERI.uyeler;
+    VERI = canliVeri;
+    if (!VERI.gh_cfg || !VERI.gh_cfg.k) VERI.gh_cfg = korunanCfg;
+    if (!VERI.uyeler || Object.keys(VERI.uyeler).length === 0) VERI.uyeler = korunanUyeler;
+  }
+
   if (!VERI.maclar || VERI.maclar.length === 0) {
     await githubPythonMotorunuTetikleVeBekle("TUM_BULTEN", {});
   } else {
     arayuzuBaslat();
+    if (VERI.anlik_kupon_sonucu) {
+      pythonKuponunuEkranaBas(VERI.anlik_kupon_sonucu, false);
+    }
   }
 }
 
 function cikisYap() {
   oturumDegeriSil();
-  VERI.maclar = [];
   modalAdminKapat();
   document.getElementById("main-app").style.display = "none";
   document.getElementById("login-overlay").style.display = "flex";
@@ -2177,14 +2032,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     await oturumuAc(kayitliUser);
   }
 
-  // Her 5 dakikada bir (300 sn) Loading ekranını açıp GitHub'daki Python motoruna tüm maçları ve yapay zekaları sıfırdan hesaplat
   setInterval(async () => {
     const aktifUser = oturumDegeriAl("omega_user");
     if (!aktifUser || githubPythonCalisiyorMu) return;
     const sayacEl = document.getElementById("autoweb-sayac-badge");
     webKalanSaniye -= 1;
     if (webKalanSaniye <= 0) {
-      webKalanSaniye = 300;
+      webKalanSaniye = 1200;
       await githubPythonMotorunuTetikleVeBekle("TUM_BULTEN", {});
     } else if (sayacEl) {
       sayacEl.textContent = `🔄 GitHub Python Yenileme: ${webKalanSaniye}s`;
@@ -2330,7 +2184,7 @@ function sekmeDegistir(no) {
   document.getElementById("tab-content-3").style.display = no === 3 ? "flex" : "none";
 }
 
-// BÜTÜN BUTONLAR SAHTE JS YERİNE DOĞRUDAN GITHUB PYTHON LOADING MOTORUNU ÇALIŞTIRIR
+// BÜTÜN BUTONLAR DOĞRUDAN GITHUB PYTHON LOADING MOTORUNU ÇALIŞTIRIR
 async function webAkilliKuponOlustur(modalGoster = true) {
   const risk = document.getElementById("sel-kupon-risk").value;
   const macAdet = parseInt(document.getElementById("sel-kupon-adet").value || "3", 10);
@@ -3782,7 +3636,7 @@ class CanliInternetVeriMotoru:
         }
 
     def canli_piyasa_ve_form_mikro_guncelle(self):
-        """Başlama saati geçmiş maçları bültenden temizler (Rastgele gürültü eklemez, gerçek veriyi korur)."""
+        """Başlama saati geçmiş maçları bültenden temizler."""
         simdi_utc = _utc_simdi_ts()
         self.gelecek_maclar = [m for m in self.gelecek_maclar if int(m.get('unix_zamani', 0)) > simdi_utc]
 
@@ -3833,6 +3687,7 @@ class CanliInternetVeriMotoru:
         df['korner_baskisi'] = df['ev_korner'] - df['dep_korner']
         df['piyasa_guc_farki'] = df['piyasa_p1'] - df['piyasa_p2']
         return df
+
 
 class DerinYapayZekaVeSimulasyonMotoru:
     """
@@ -4039,7 +3894,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
             self.yan_market_modelleri[market_kodu] = (m_hgb, m_rf, m_dnn)
 
         # Eğitim (fit) çoklu çekirdekle tamamlandıktan sonra, tekil maç tahmininde (predict_proba)
-        # thread açma gecikmesini önlemek için alt tahmincilerin n_jobs değerini 1'e çek (Sonuçlar %100 aynıdır, 45 sn hızlandırır)
+        # thread açma gecikmesini önlemek için alt tahmincilerin n_jobs değerini 1'e çek
         for m_obj in list(self.egitilmis_modeller.values()):
             for attr_name in ("calibrated_classifiers_", "estimators_"):
                 for alt in getattr(m_obj, attr_name, []):
@@ -4597,7 +4452,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
         }
 class OmegaTahminArayuzu:
     CANLI_GUNCELLEME_SANIYE = 15
-    TAM_BULTEN_YENILEME_SANIYE = 1200  # Her 5 dakikada bir internetten geçmiş + gelecek maçları sıfırdan çeker ve tüm yapay zekaları eğitir
+    TAM_BULTEN_YENILEME_SANIYE = 1200  # Her 20 dakikada bir internetten geçmiş + gelecek maçları sıfırdan çeker ve tüm yapay zekaları eğitir
 
     def __init__(self, root):
         self.root = root
@@ -4658,7 +4513,7 @@ class OmegaTahminArayuzu:
 
         tk.Label(
             self.secim_frame,
-            text="Misli / İddaa Gerçek Gelecek Maçlar & Takım Geçmişleri 5dk'da Bir Dinamik Çekilir\n18 Ana Sistem + 10 Yan Market Yapay Zekası + 1.000 Deneme Optimizasyonu İle Hesaplanır:",
+            text="Misli / İddaa Gerçek Gelecek Maçlar & Takım Geçmişleri Dinamik Çekilir\n18 Ana Sistem + 10 Yan Market Yapay Zekası + 1.000 Deneme Optimizasyonu İle Hesaplanır:",
             bg="#0f172a", fg="#94a3b8", font=("Helvetica", 11), justify="center"
         ).pack(pady=(0, 18))
 
@@ -4901,7 +4756,7 @@ class OmegaTahminArayuzu:
         ).pack(side=tk.LEFT, padx=3)
 
         self.canli_sayac_lbl = tk.Label(
-            ust_frame, text="🔄 Bülten & AI Yenileme: 300s", bg="#1e293b", fg="#fbbf24", font=(f_ana, 9, "bold")
+            ust_frame, text="🔄 Bülten & AI Yenileme: 1200s", bg="#1e293b", fg="#fbbf24", font=(f_ana, 9, "bold")
         )
         self.canli_sayac_lbl.pack(side=tk.RIGHT, padx=6)
 
@@ -5492,11 +5347,11 @@ class OmegaTahminArayuzu:
 
         if self.tam_yenileme_sayaci <= 0 and not self.tam_yenileme_aktif_mi:
             self.tam_yenileme_sayaci = self.TAM_BULTEN_YENILEME_SANIYE
-            self.canli_sayac_lbl.config(text="🌐 5dk Tam Bülten & Geçmiş Yenileniyor...", fg="#4ade80")
+            self.canli_sayac_lbl.config(text="🌐 Tam Bülten & Geçmiş Yenileniyor...", fg="#4ade80")
             threading.Thread(target=self._arka_plan_5dk_tam_yenileme, daemon=True).start()
         else:
             self.canli_sayac_lbl.config(
-                text=f"🔄 5dk Oto-Yenileme: {self.tam_yenileme_sayaci}s",
+                text=f"🔄 Oto-Yenileme: {self.tam_yenileme_sayaci}s",
                 fg="#fbbf24"
             )
         self.root.after(1000, self._canli_ml_zamanlayici)
@@ -5907,7 +5762,7 @@ class OmegaTahminArayuzu:
 
 def bulut_uzerinde_otonom_egit_ve_guncelle():
     """
-    Webdeki Loading ekranından (workflow_dispatch) veya 5 dakikalık zamanlayıcıdan tetiklendiğinde
+    Webdeki Loading ekranından (workflow_dispatch) veya 20 dakikalık zamanlayıcıdan tetiklendiğinde
     GitHub'ın Ubuntu sunucusunda bilgisayardan tamamen bağımsız olarak çalışır:
     1) Canlı gelecek maçları ve takımların son 3 sezonluk + son 60 günlük geçmiş maçlarını sıfırdan indirir.
     2) 18 Ana Sistemi (15 Eğitilmiş AI + Dixon-Coles Poisson + 100.000 Monte Carlo + Piyasa) ve
@@ -5915,9 +5770,9 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
        3.5 Kart Üst, Frikik/Duran Top, Penaltı/VAR) yapay zeka modellerini sıfırdan eğitir.
     3) Her maç için 1.000 farklı matematiksel kombinasyonu dener.
     4) Webden istenen Kupon veya Özel Maç analizini anlık olarak Python'da hesaplayıp 'omega_canli_veri.json'
-       kanalına yazar (tarayıcı bu paketi alır almaz geçici dosyayı otomatik temizler).
+       kanalına yazar.
     """
-    istek_id = os.environ.get("OMEGA_ISTEK_ID", "otonom_5dk").strip() or "otonom_5dk"
+    istek_id = os.environ.get("OMEGA_ISTEK_ID", "otonom_20dk").strip() or "otonom_20dk"
     islem_tipi = os.environ.get("OMEGA_ISLEM_TIPI", "TUM_BULTEN").strip() or "TUM_BULTEN"
     kupon_risk = os.environ.get("OMEGA_KUPON_RISK", "ORTA").strip() or "ORTA"
     try:
