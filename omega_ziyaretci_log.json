@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "19.10.2026 22:25:22",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 5.96)"
+  },
+  {
     "tarih": "19.10.2026 22:18:44",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1449,14 +1458,5 @@
     "ekran": "393x735",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "🎫 AI Kupon Oluşturdu (YUKSEK | 3 Maç | 2 Gün)"
-  },
-  {
-    "tarih": "17.10.2026 14:41:32",
-    "kullanici": "Yönetici (Admin)",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 3.17)"
   }
 ]
