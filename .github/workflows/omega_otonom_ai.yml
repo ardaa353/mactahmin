@@ -21,12 +21,12 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Yapay Zeka Kutuphanelerini Yukle
+      - name: Yapay Zeka ve Veri Kutuphanelerini Yukle
         run: |
           sudo apt-get update && sudo apt-get install -y python3-tk
-          pip install numpy pandas scipy scikit-learn
+          pip install numpy pandas scipy scikit-learn requests urllib3
 
-      - name: Takimlarin Son Maclarini ve Yeni Bulteni Canli Cekip 18+13 AI Egit
+      - name: Misli Iddaa Bultenini ve Gecmis Maclari Cekip 18 AI + 1000 Deneme Optimizasyonunu Calistir
         run: python omega_bulut_motoru.py --bulut-calistir
 
       - name: Guncel Tahminleri Canli Veriye Kaydet
@@ -35,5 +35,5 @@ jobs:
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
           git add omega_canli_veri.json omega_uyeler.json || true
-          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI: Canli Gercek Bulten + 18 AI Otonom Egitim"
+          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI v6: Misli/Iddaa Gercek Bulten + 1000 Deneme Optimizasyonu"
           git push || true
