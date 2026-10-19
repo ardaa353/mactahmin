@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "19.10.2026 21:08:37",
+    "kullanici": "batu",
+    "ip": "176.239.200.30",
+    "konum": "Kocasinan / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x735",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "Maç İnceledi: Braga - Gil Vicente"
+  },
+  {
     "tarih": "19.10.2026 21:07:01",
     "kullanici": "batu",
     "ip": "176.239.200.30",
@@ -1450,14 +1460,5 @@
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
     "islem": "Çıkış Yaptı / Oturum Kapatıldı"
-  },
-  {
-    "tarih": "17.10.2026 14:24:58",
-    "kullanici": "enes",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "🗑️ Üye Kaydı Silindi (Tkinter)"
   }
 ]
