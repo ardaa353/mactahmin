@@ -1,14 +1,14 @@
-name: OMEGA Quantum AI 5dk Otonom Python Motoru
+name: OMEGA Quantum AI 20dk Otonom Python Motoru
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/20 * * * *'
   workflow_dispatch:
     inputs:
       istek_id:
         description: 'Web Istek Tekil Kimligi'
         required: false
-        default: 'otonom_5dk'
+        default: 'otonom_20dk'
       islem_tipi:
         description: 'TUM_BULTEN | KUPON_URET | OZEL_MAC'
         required: false
@@ -50,9 +50,8 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: 3/4 - Scikit-Learn, Scipy ve DerinSinir Agi Kutuphaneleri Yukleniyor
+      - name: 3/4 - Scikit-Learn, Scipy ve Derin Sinir Agi Kutuphaneleri Yukleniyor
         run: |
-          sudo apt-get update && sudo apt-get install -y python3-tk
           pip install numpy pandas scipy scikit-learn requests urllib3
 
       - name: 4/4 - Canli Maclar Cekiliyor, 18+10 AI Modeli Egitiliyor ve 1000 Deneme Optimizasyonu Yapiliyor
