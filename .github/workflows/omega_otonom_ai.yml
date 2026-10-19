@@ -4,6 +4,35 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+    inputs:
+      istek_id:
+        description: 'Web Istek Tekil Kimligi'
+        required: false
+        default: 'otonom_5dk'
+      islem_tipi:
+        description: 'TUM_BULTEN | KUPON_URET | OZEL_MAC'
+        required: false
+        default: 'TUM_BULTEN'
+      kupon_risk:
+        description: 'DUSUK | ORTA | YUKSEK'
+        required: false
+        default: 'ORTA'
+      kupon_adet:
+        description: 'Kupon Mac Sayisi'
+        required: false
+        default: '3'
+      kupon_gun:
+        description: 'Kupon Gun Siniri'
+        required: false
+        default: '7'
+      ozel_ev:
+        description: 'Ozel Analiz Ev Sahibi'
+        required: false
+        default: ''
+      ozel_dep:
+        description: 'Ozel Analiz Deplasman'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -12,28 +41,36 @@ jobs:
   omega_ai_hesapla:
     runs-on: ubuntu-latest
     steps:
-      - name: Depoyu Cek
+      - name: 1/4 - GitHub Ubuntu Sunucusu Hazirlaniyor ve Kod Cekiliyor
         uses: actions/checkout@v4
 
-      - name: Python 3.11 Kur
+      - name: 2/4 - Python 3.11 ve Yapay Zeka Cekirdegi Yukleniyor
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Yapay Zeka ve Veri Kutuphanelerini Yukle
+      - name: 3/4 - Scikit-Learn, Scipy ve DerinSinir Agi Kutuphaneleri Yukleniyor
         run: |
           sudo apt-get update && sudo apt-get install -y python3-tk
           pip install numpy pandas scipy scikit-learn requests urllib3
 
-      - name: Misli Iddaa Bultenini ve Gecmis Maclari Cekip 18 AI + 1000 Deneme Optimizasyonunu Calistir
+      - name: 4/4 - Canli Maclar Cekiliyor, 18+10 AI Modeli Egitiliyor ve 1000 Deneme Optimizasyonu Yapiliyor
+        env:
+          OMEGA_ISTEK_ID: ${{ github.event.inputs.istek_id }}
+          OMEGA_ISLEM_TIPI: ${{ github.event.inputs.islem_tipi }}
+          OMEGA_KUPON_RISK: ${{ github.event.inputs.kupon_risk }}
+          OMEGA_KUPON_ADET: ${{ github.event.inputs.kupon_adet }}
+          OMEGA_KUPON_GUN: ${{ github.event.inputs.kupon_gun }}
+          OMEGA_OZEL_EV: ${{ github.event.inputs.ozel_ev }}
+          OMEGA_OZEL_DEP: ${{ github.event.inputs.ozel_dep }}
         run: python omega_bulut_motoru.py --bulut-calistir
 
-      - name: Guncel Tahminleri Canli Veriye Kaydet
+      - name: Anlik Hesaplanan Paketi Web Kanalina Ilet
         run: |
           git config --local user.email "omega-ai-bot@users.noreply.github.com"
           git config --local user.name "OMEGA Quantum Cloud AI"
           git pull --rebase origin main || true
           git add omega_canli_veri.json omega_uyeler.json || true
-          git diff --staged --quiet || git commit -m "🤖 OMEGA Bulut Python AI v6: Misli/Iddaa Gercek Bulten + 1000 Deneme Optimizasyonu"
+          git diff --staged --quiet || git commit -m "⚡ OMEGA Anlik Bulut Python AI Sonucu (${{ github.event.inputs.istek_id }})"
           git push || true
