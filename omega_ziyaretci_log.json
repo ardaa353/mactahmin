@@ -1,5 +1,15 @@
 [
   {
+    "tarih": "19.10.2026 21:01:06",
+    "kullanici": "batu",
+    "ip": "176.239.200.30",
+    "konum": "Kocasinan / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "ekran": "393x735",
+    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
+    "islem": "🎫 AI Kupon Oluşturdu (ORTA | 3 Maç | 7 Gün)"
+  },
+  {
     "tarih": "19.10.2026 20:15:08",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1448,15 +1458,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "✅ Yeni Üye Kaydı Oluşturuldu (Tkinter)"
-  },
-  {
-    "tarih": "17.10.2026 14:24:24",
-    "kullanici": "enes",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "393x695",
-    "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Başarısız Giriş (Kullanıcı Yok)"
   }
 ]
