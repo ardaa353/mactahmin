@@ -38,6 +38,10 @@ permissions:
   contents: write
   actions: write
 
+concurrency:
+  group: omega-ai-bulut-grubu
+  cancel-in-progress: true
+
 jobs:
   omega_ai_hesapla:
     runs-on: ubuntu-latest
@@ -45,7 +49,7 @@ jobs:
       - name: 1/4 - GitHub Ubuntu Sunucusu Hazirlaniyor ve Kod Cekiliyor
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: 2/4 - Python 3.11 ve Yapay Zeka Cekirdegi Yukleniyor
         uses: actions/setup-python@v5
@@ -68,11 +72,11 @@ jobs:
           OMEGA_OZEL_DEP: ${{ github.event.inputs.ozel_dep }}
         run: python omega_bulut_motoru.py --bulut-calistir
 
-      - name: Anlik Hesaplanan Paketi Web Kanalina Ilet
+      - name: Anlik Hesaplanan Sikistirilmis Parcali JSON Paketlerini Web Kanalina Ilet
         run: |
           git config --local user.email "omega-ai-bot@users.noreply.github.com"
           git config --local user.name "OMEGA Quantum Cloud AI"
-          git add omega_canli_veri.json omega_uyeler.json || true
+          git rm -f --ignore-unmatch omega_canli_veri.json || true
+          git add omega_canli_meta.json omega_canli_part_*.json omega_uyeler.json || true
           git diff --staged --quiet || git commit -m "⚡ OMEGA Anlik Bulut Python AI Sonucu (${{ github.event.inputs.istek_id }})"
-          git pull --rebase -X theirs origin ${{ github.ref_name }} || true
-          git push origin HEAD:${{ github.ref_name }} || git push --force || true
+          git push --force origin HEAD:${{ github.ref_name }} || true
