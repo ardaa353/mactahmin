@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 00:55:38",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 4.60)"
+  },
+  {
     "tarih": "21.10.2026 00:48:56",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1434,15 +1443,5 @@
     "ekran": "1470x764",
     "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
     "islem": "✅ Siteye Başarılı Giriş Yaptı"
-  },
-  {
-    "tarih": "17.10.2026 16:26:18",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "1470x764",
-    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
-    "islem": "Giriş Ekranını Açtı"
   }
 ]
