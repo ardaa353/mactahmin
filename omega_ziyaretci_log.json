@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 01:17:17",
+    "kullanici": "arda",
+    "ip": "176.239.200.30",
+    "konum": "Kocasinan / Türkiye",
+    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
+    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
+    "islem": "✅ Siteye Giriş Yaptı (Canlı GitHub Python Modu)"
+  },
+  {
     "tarih": "21.10.2026 01:14:35",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1423,16 +1432,6 @@
   },
   {
     "tarih": "17.10.2026 16:27:48",
-    "kullanici": "arda",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "1470x764",
-    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
-    "islem": "Maç İnceledi: Sheffield United - Sunderland"
-  },
-  {
-    "tarih": "17.10.2026 16:27:47",
     "kullanici": "arda",
     "ip": "5.24.227.253",
     "konum": "Ankara / Türkiye",
