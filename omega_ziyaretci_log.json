@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 01:19:11",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🔥 13'lü İstatistik Penceresi Açıldı: Ajax - Atalanta"
+  },
+  {
     "tarih": "21.10.2026 01:19:00",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1425,16 +1434,6 @@
     "isp": "IP Volume inc",
     "ekran": "1905x1096",
     "cihaz": "Linux x86_64 | Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, li",
-    "islem": "Giriş Ekranını Açtı"
-  },
-  {
-    "tarih": "17.10.2026 09:46:54",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "147.90.209.18",
-    "konum": "Frankfurt am Main / Germany",
-    "isp": "Datacamp Limited",
-    "ekran": "1920x1080",
-    "cihaz": "Win32 | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT",
     "islem": "Giriş Ekranını Açtı"
   }
 ]
