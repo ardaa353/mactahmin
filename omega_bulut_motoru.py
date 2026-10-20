@@ -62,6 +62,17 @@ def _utc_simdi_ts() -> int:
     return int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
 
+def _turkiye_gun_farki_hesapla(unix_zamani: int) -> int:
+    """
+    Maçın UTC Unix zaman damgasını Türkiye saatine (UTC+3) çevirir ve
+    Türkiye takvim gününe göre kaçıncı günde olduğunu (1 = Bugün, 2 = Yarın ... 7 = 7. Gün) döndürür.
+    """
+    simdi_tr = _turkiye_saati_simdi()
+    mac_tr = datetime.datetime.fromtimestamp(int(unix_zamani), datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=3)
+    takvim_farki = (mac_tr.date() - simdi_tr.date()).days
+    return max(1, takvim_farki + 1)
+
+
 def _esnek_http_get(url: str, headers: dict = None, timeout: float = 6.5) -> str:
     """Önce requests kütüphanesiyle (varsa), yoksa urllib ile SSL doğrulamasız hızlı veri çeker."""
     varsayilan_headers = {
@@ -120,9 +131,9 @@ on:
         required: false
         default: '3'
       kupon_gun:
-        description: 'Kupon Gun Siniri'
+        description: 'Kupon Gun Siniri (1-7)'
         required: false
-        default: '7'
+        default: '1'
       ozel_ev:
         description: 'Ozel Analiz Ev Sahibi'
         required: false
@@ -218,7 +229,7 @@ class UyeVeGitHubYoneticisi:
     2) 7 MB'lık ham veriyi Yapısal Şema Sıkıştırması + 80'er maçlık Parçalama (Chunking) ile
        her biri ~140 KB olan dosyalara (omega_canli_meta.json + omega_canli_part_1.json...) indirger.
     3) GitHub Actions tamamlandığı anda Loading ekranından anında çıkıp maçları basan ve
-       Admin Paneli dahil %100 mobil uyumlu çalışan index.html üretir.
+       1'den 7'ye kadar gün filtreli Akıllı Kupon üreten %100 mobil uyumlu index.html üretir.
     """
     DOSYA_ADI = "omega_sistem_verisi.json"
     YEREL_LOG_DOSYASI = "omega_ziyaretci_log_yerel.json"
@@ -324,7 +335,6 @@ class UyeVeGitHubYoneticisi:
         """
         7 MB'lık ham veriyi %93 küçültülmüş şema yapısıyla 80'er maçlık parçalara (~140 KB)
         ve ~25 KB'lık ana kontrol dosyasına (omega_canli_meta.json) bölerek diske yazar.
-        Eski devasa omega_canli_veri.json dosyasını siler ki GitHub'da yer kaplamasın.
         """
         for eski_dosya in os.listdir("."):
             if (eski_dosya.startswith("omega_canli_part_") and eski_dosya.endswith(".json")) or eski_dosya == "omega_canli_veri.json":
@@ -688,9 +698,8 @@ class UyeVeGitHubYoneticisi:
     @staticmethod
     def _mac_analizini_json_yap(mac, sonuc, detay_13):
         """
-        7 MB'lık veriyi ~450 KB'a düşüren kayıpsız sıkıştırılmış maç paketi:
-        Tekrar eden 195 adet model/sistem ismini her maçta yazmak yerine sadece sayısal dizileri (`_ai`, `_m13`) yazar.
-        Tarayıcıdaki `macPaketiAc(m)` fonksiyonu bunu anında orijinal `bireysel_ai` ve `detay_13` formatına açar.
+        7 MB'lık veriyi ~450 KB'a düşüren kayıpsız sıkıştırılmış maç paketi.
+        gun_farki Türkiye saatine (UTC+3) göre kesin olarak hesaplanır.
         """
         ai_dizi = []
         for _, (ol, ag) in sonuc['bireysel_ai'].items():
@@ -723,6 +732,9 @@ class UyeVeGitHubYoneticisi:
             for x in detay_13["ilk_3_banko"]
         ]
 
+        unix_ts = int(mac.get("unix_zamani", 0))
+        kesin_gun_farki = _turkiye_gun_farki_hesapla(unix_ts) if unix_ts > 0 else int(mac.get("gun_farki", 1))
+
         p = mac["parametreler"]
         return {
             "_k": 1,
@@ -732,8 +744,8 @@ class UyeVeGitHubYoneticisi:
             "ev": mac["ev"],
             "dep": mac["dep"],
             "tarih_str": mac.get("tarih_str", "-"),
-            "gun_farki": int(mac.get("gun_farki", 1)),
-            "unix_zamani": int(mac.get("unix_zamani", 0)),
+            "gun_farki": kesin_gun_farki,
+            "unix_zamani": unix_ts,
             "oran_1": round(float(mac["oran_1"]), 2),
             "oran_x": round(float(mac["oran_x"]), 2),
             "oran_2": round(float(mac["oran_2"]), 2),
@@ -818,8 +830,9 @@ class UyeVeGitHubYoneticisi:
                     sema_sozluk = self._sema_sozlugu_cikar(m, analiz, detay_13)
                 web_maclar.append(self._mac_analizini_json_yap(m, analiz, detay_13))
 
+            # Başlangıç kuponu varsayılan olarak 1. Gün (Bugünün en yüksek ihtimalli maçları) ile üretilir
             k_sonuc = ai_motoru.akilli_kupon_olustur(
-                veri_motoru.gelecek_maclar, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=7
+                veri_motoru.gelecek_maclar, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=1
             )
             anlik_kupon_sonucu = {
                 "risk_seviyesi": k_sonuc["risk_seviyesi"],
@@ -1047,14 +1060,14 @@ class UyeVeGitHubYoneticisi:
   .top-btn.fetch-btn { background: #0f766e; border: 1px solid #2dd4bf; }
 
   .workspace {
-    display: grid; grid-template-columns: 515px 1fr; gap: 12px; padding: 12px;
+    display: grid; grid-template-columns: 525px 1fr; gap: 12px; padding: 12px;
     height: calc(100vh - 60px);
   }
   .tk-panel {
     background: var(--bg-panel); border: 1px solid var(--border-color);
     border-radius: 8px; padding: 10px; display: flex; flex-direction: column; overflow: hidden;
   }
-  .filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .filter-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
   select {
     background: #0f172a; color: #f8fafc; border: 1px solid var(--border-color);
     padding: 7px 9px; border-radius: 6px; font-size: 12.5px; outline: none;
@@ -1187,7 +1200,6 @@ class UyeVeGitHubYoneticisi:
     white-space: nowrap; padding: 8px 8px;
   }
 
-  /* MOBİL GÖRÜNÜM VE DAR EKRAN OPTİMİZASYONU */
   @media (max-width: 920px) {
     .workspace { grid-template-columns: 1fr; height: auto; padding: 8px; gap: 10px; }
     .topbar-title { font-size: 13.5px; width: 100%; }
@@ -1236,7 +1248,7 @@ class UyeVeGitHubYoneticisi:
     </h2>
     <div id="gh-load-sub" style="color:#cbd5e1; font-size:13.5px; margin-bottom:18px; line-height:1.5;">
       Bilgisayardan bağımsız olarak GitHub Ubuntu sunucusunda canlı maçlar ve takımların eski maçları çekiliyor,
-      <b>18 Ana Yapay Zeka + 10 Yan Market Sinir Ağı (1.5 Üst, Frikik, Korner, Kart, KG)</b> gerçekçi kalibrasyonla eğitiliyor ve
+      <b>18 Ana Yapay Zeka + Resmi Misli/İddaa Market Modelleri (MS, Alt/Üst, KG, İY, Çifte Şans)</b> gerçekçi kalibrasyonla eğitiliyor ve
       <b>1.000 Deneme Optimizasyonu + 100.000 Monte Carlo</b> sıkıştırılmış parçalı paketlerle aktarılıyor.
     </div>
     <div style="width:100%; height:18px; background:#0f172a; border-radius:10px; overflow:hidden; border:1px solid #334155; margin-bottom:12px;">
@@ -1279,7 +1291,7 @@ class UyeVeGitHubYoneticisi:
 <div id="modal-13-overlay" class="modal-overlay" onclick="if(event.target===this) modal13Kapat();">
   <div class="modal-box">
     <div class="modal-header">
-      <h3 id="m13-baslik">🔥 13 YAPAY ZEKA & SİSTEM İLE TÜM MAÇ İSTATİSTİKLERİ (GITHUB PYTHON HESAPLAMASI)</h3>
+      <h3 id="m13-baslik">🔥 13 YAPAY ZEKA & SİSTEM İLE TÜM RESMİ MAÇ MARKETLERİ (GITHUB PYTHON HESAPLAMASI)</h3>
       <button class="modal-close-btn" onclick="modal13Kapat()">✖ KAPAT</button>
     </div>
     <div class="banko-hero-banner">
@@ -1288,12 +1300,12 @@ class UyeVeGitHubYoneticisi:
     </div>
     <div class="modal-13-body">
       <div class="tk-panel" style="min-height:340px;">
-        <div class="section-label">📊 TÜM İSTATİSTİKLER VE 13 SİSTEM ORTALAMALARI (Satıra Tıkla -> Sağda 13 AI Detayını Gör)</div>
+        <div class="section-label">📊 RESMİ BAHİS MARKETLERİ VE 13 SİSTEM ORTALAMALARI (Satıra Tıkla -> Sağda 13 AI Detayını Gör)</div>
         <div class="treeview-box">
           <table>
             <thead>
               <tr>
-                <th>İstatistik / Bahis Marketi</th>
+                <th>İstatistik / Resmi Bahis Marketi</th>
                 <th>13 Sistem Ort. (%)</th>
                 <th>Adil Oran</th>
                 <th>Karar & Güven</th>
@@ -1304,7 +1316,7 @@ class UyeVeGitHubYoneticisi:
         </div>
       </div>
       <div class="tk-panel" style="min-height:340px;">
-        <div id="m13-secili-market-baslik" class="section-label">🧠 SEÇİLİ İSTATİSTİK İÇİN 13 SİSTEMİN TEK TEK YÜZDELERİ</div>
+        <div id="m13-secili-market-baslik" class="section-label">🧠 SEÇİLİ MARKET İÇİN 13 SİSTEMİN TEK TEK YÜZDELERİ</div>
         <div class="treeview-box">
           <table>
             <thead>
@@ -1336,7 +1348,7 @@ class UyeVeGitHubYoneticisi:
     </div>
     <div style="padding: 10px 14px 14px 14px; overflow-y: auto; flex: 1; display:flex; flex-direction:column; gap:10px;">
       <div class="tk-panel" style="min-height:320px; flex:1;">
-        <div class="section-label">🎫 GITHUB PYTHON TARAFINDAN ANLIK SEÇİLEN AKILLI KUPON (Satıra Tıkla -> 13'lü Detay)</div>
+        <div class="section-label">🎫 SEÇİLEN GÜNLERDEKİ EN YÜKSEK İHTİMALLİ AKILLI KUPON (Satıra Tıkla -> 13'lü Detay)</div>
         <div class="treeview-box">
           <table>
             <thead>
@@ -1359,7 +1371,7 @@ class UyeVeGitHubYoneticisi:
   </div>
 </div>
 
-<!-- 👑 WEB ADMİN YÖNETİM PANELİ (MASAÜSTÜ & MOBİL TAM UYUMLU) -->
+<!-- 👑 WEB ADMİN YÖNETİM PANELİ -->
 <div id="modal-admin-overlay" class="modal-overlay" onclick="if(event.target===this) modalAdminKapat();">
   <div class="modal-box" style="border-color:#fbbf24;">
     <div class="modal-header" style="border-bottom-color:#d97706;">
@@ -1433,7 +1445,7 @@ class UyeVeGitHubYoneticisi:
       <span id="autoweb-sayac-badge" style="color:#fbbf24; font-size:12px; font-weight:800;">🔄 1200s</span>
       <button class="top-btn fetch-btn" onclick="webtenYeniBultenVeCSVIndir(true)">🌐 Şimdi Yenile (GitHub Python İle Maçları Çek & Eğit)</button>
       <button class="top-btn deep-btn" onclick="aktifMacIcin13PenceresiAc()">🔍 13'lü İstatistik</button>
-      <button class="top-btn kupon-btn" onclick="webAkilliKuponOlustur(true)">🎫 AI Kuponu (GitHub Python)</button>
+      <button class="top-btn kupon-btn" onclick="webAkilliKuponOlustur(true, false)">🎫 AI Kuponu Göster</button>
       <button id="btn-admin-panel" class="top-btn admin-btn" onclick="modalAdminAc()">👑 Admin Paneli</button>
       <button id="btn-view-mode" class="top-btn" onclick="gorunumModuDegistir()">📱 Mobil Görünüm</button>
       <span id="user-badge" style="color:#38bdf8; font-size:12.5px; font-weight:700;"></span>
@@ -1445,8 +1457,18 @@ class UyeVeGitHubYoneticisi:
     <!-- SOL PANEL -->
     <div class="tk-panel">
       <div class="filter-bar">
-        <label style="font-weight:700; font-size:12px; color:#fbbf24;">🇹🇷 Misli / İddaa Lig Seçimi:</label>
+        <label style="font-weight:700; font-size:12px; color:#fbbf24;">🇹🇷 Lig:</label>
         <select id="sel-lig" style="flex:1;" onchange="ligFiltrele()"></select>
+        <label style="font-weight:700; font-size:12px; color:#38bdf8;">📅 Gün:</label>
+        <select id="sel-bulten-gun" onchange="ligFiltrele()">
+          <option value="7" selected>1-7 Gün (Tüm Hafta)</option>
+          <option value="1">Sadece 1. Gün (Bugün)</option>
+          <option value="2">1 - 2. Gün Maçları</option>
+          <option value="3">1 - 3. Gün Maçları</option>
+          <option value="4">1 - 4. Gün Maçları</option>
+          <option value="5">1 - 5. Gün Maçları</option>
+          <option value="6">1 - 6. Gün Maçları</option>
+        </select>
       </div>
       <div style="display:flex; gap:6px; margin-bottom:6px;">
         <input type="text" id="inp-mac-ara" placeholder="🔎 Takım veya Lig Ara (Galatasaray, Fenerbahçe, Real Madrid)..."
@@ -1485,11 +1507,11 @@ class UyeVeGitHubYoneticisi:
       </div>
 
       <div class="coupon-frame">
-        <h4>🤖 Yapay Zeka Akıllı Kupon Oluşturucu (GitHub Python Anlık Hesaplama)</h4>
+        <h4>🤖 Yapay Zeka Akıllı Kupon Oluşturucu (1-7 Gün Kesin Filtreli Resmi Marketler)</h4>
         <div class="coupon-grid">
           <div>
             <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Risk Seviyesi:</div>
-            <select id="sel-kupon-risk" style="width:100%;">
+            <select id="sel-kupon-risk" style="width:100%;" onchange="webAkilliKuponOlustur(false, false)">
               <option value="DUSUK">🛡️ Düşük Risk (En Garanti Banko Marketler)</option>
               <option value="ORTA" selected>⚖️ Orta Risk (İdeal Oran & Çeşitli Market)</option>
               <option value="YUKSEK">🔥 Yüksek Risk (Yüksek Oran / Value Sürpriz)</option>
@@ -1497,7 +1519,7 @@ class UyeVeGitHubYoneticisi:
           </div>
           <div>
             <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Maç Sayısı:</div>
-            <select id="sel-kupon-adet" style="width:100%;">
+            <select id="sel-kupon-adet" style="width:100%;" onchange="webAkilliKuponOlustur(false, false)">
               <option value="2">2 Maçlık Kupon</option>
               <option value="3" selected>3 Maçlık Kupon</option>
               <option value="4">4 Maçlık Kupon</option>
@@ -1506,18 +1528,18 @@ class UyeVeGitHubYoneticisi:
             </select>
           </div>
           <div>
-            <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Zaman Aralığı (Oynanacağı Tarihler):</div>
-            <select id="sel-kupon-gun" style="width:100%;">
-              <option value="1">📅 1. Gün Maçları</option>
+            <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Zaman Aralığı (1-7 Gün):</div>
+            <select id="sel-kupon-gun" style="width:100%;" onchange="webAkilliKuponOlustur(false, false)">
+              <option value="1" selected>📅 1. Gün Maçları</option>
               <option value="2">📅 2 Günlük Maçlar</option>
               <option value="3">📅 3 Günlük Maçlar</option>
               <option value="4">📅 4 Günlük Maçlar</option>
               <option value="5">📅 5 Günlük Maçlar</option>
               <option value="6">📅 6 Günlük Maçlar</option>
-              <option value="7" selected>📅 7 Günlük Maçlar</option>
+              <option value="7">📅 7 Günlük Maçlar</option>
             </select>
           </div>
-          <button class="coupon-create-btn" onclick="webAkilliKuponOlustur(true)">🤖 AI KUPONU<br>OLUŞTUR</button>
+          <button class="coupon-create-btn" onclick="webAkilliKuponOlustur(true, false)">🤖 AI KUPONU<br>OLUŞTUR</button>
         </div>
       </div>
     </div>
@@ -1619,8 +1641,24 @@ const ONCELIKLI_LIG_SIRASI = [
   "İtalya Serie B (Alt Lig)"
 ];
 
+function turkiyeSimdiTarihObj() {
+  const nowUtcMs = Date.now();
+  return new Date(nowUtcMs + (3 * 3600 * 1000));
+}
+
+function macTurkiyeGunNoHesapla(unixZamani) {
+  if (!unixZamani) return 1;
+  const simdiTr = turkiyeSimdiTarihObj();
+  const macTr = new Date((Number(unixZamani) * 1000) + (3 * 3600 * 1000));
+  const simdiGunBaslangic = Date.UTC(simdiTr.getUTCFullYear(), simdiTr.getUTCMonth(), simdiTr.getUTCDate());
+  const macGunBaslangic = Date.UTC(macTr.getUTCFullYear(), macTr.getUTCMonth(), macTr.getUTCDate());
+  const farkGun = Math.round((macGunBaslangic - simdiGunBaslangic) / 86400000);
+  return Math.max(1, farkGun + 1);
+}
+
 function macPaketiAc(m, semaObj) {
   if (!m) return m;
+  m.gun_farki = macTurkiyeGunNoHesapla(m.unix_zamani);
   if (m.bireysel_ai && m.detay_13) return m;
   const sema = semaObj || VERI.sema || {};
   const aiAdlar = (sema.ai_adlar && sema.ai_adlar.length) ? sema.ai_adlar : VARSAYILAN_AI_ISIMLERI;
@@ -1665,7 +1703,7 @@ function macPaketiAc(m, semaObj) {
       };
     });
     m.detay_13 = {
-      en_banko: m._eb || acikMarketler[0] || { market: "1.5 GOL ÜST", ortalama: m.ust_1_5 || 70, adil_oran: 1.42, karar: "✅ GÜÇLÜ" },
+      en_banko: m._eb || acikMarketler[0] || { market: "Toplam Gol: 1.5 GOL ÜST", ortalama: m.ust_1_5 || 70, adil_oran: 1.42, karar: "✅ GÜÇLÜ" },
       ilk_3_banko: m._i3 || acikMarketler.slice(0, 3),
       marketler: acikMarketler
     };
@@ -1872,7 +1910,8 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
   githubPythonCalisiyorMu = true;
   webKalanSaniye = 1200;
   const istekId = "req_" + Date.now() + "_" + Math.floor(Math.random() * 9999);
-  const baslangicTs = Math.floor(Date.now() / 1000) - 5;
+  const baslangicMs = Date.now() - 8000;
+  const baslangicTs = Math.floor(Date.now() / 1000) - 2;
 
   const overlay = document.getElementById("github-python-loading-overlay");
   const titleEl = document.getElementById("gh-load-title");
@@ -1884,7 +1923,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
   if (barEl) barEl.style.width = "8%";
   if (titleEl) {
     titleEl.textContent = islemTipi === "KUPON_URET"
-      ? "🎫 GITHUB PYTHON: 18+10 KALİBRELİ YAPAY ZEKA İLE ANLIK KUPON HESAPLANIYOR..."
+      ? `🎫 GITHUB PYTHON: ${ekParametreler.kupon_gun || 1} GÜNLÜK AKILLI KUPON HESAPLANIYOR...`
       : (islemTipi === "OZEL_MAC"
           ? "🎯 GITHUB PYTHON: ÖZEL MAÇ 18+10 SİSTEM & 1.000 DENEME İLE ANALİZ EDİLİYOR..."
           : "🌐 GITHUB PYTHON: CANLI MİSLİ/İDDAA BÜLTENİ, ESKİ MAÇLAR & TÜM YAPAY ZEKALAR EĞİTİLİYOR...");
@@ -1893,7 +1932,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
   let gecenSn = 0;
   const snInterval = setInterval(() => {
     gecenSn++;
-    if (timerEl) timerEl.textContent = `Geçen Süre: ${gecenSn} sn (GitHub Ubuntu sunucusunda gerçek Python & 45 Yapay Zeka çalışıyor)`;
+    if (timerEl) timerEl.textContent = `Geçen Süre: ${gecenSn} sn (GitHub Ubuntu sunucusunda gerçek Python & Yapay Zeka çalışıyor)`;
   }, 1000);
 
   const headers = {
@@ -1909,7 +1948,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
       islem_tipi: islemTipi,
       kupon_risk: String(ekParametreler.kupon_risk || "ORTA"),
       kupon_adet: String(ekParametreler.kupon_adet || "3"),
-      kupon_gun: String(ekParametreler.kupon_gun || "7"),
+      kupon_gun: String(ekParametreler.kupon_gun || "1"),
       ozel_ev: String(ekParametreler.ozel_ev || ""),
       ozel_dep: String(ekParametreler.ozel_dep || "")
     };
@@ -1928,35 +1967,39 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
     if (barEl) barEl.style.width = "15%";
 
     let tamamlandi = false;
-    let isAkisiBittiSayaci = 0;
+    let yeniRunTamamSayaci = 0;
 
     for (let deneme = 0; deneme < 110; deneme++) {
       await new Promise(r => setTimeout(r, 3000));
 
-      let runTamamMi = false;
+      let aktifRunTamamMi = false;
       try {
         const runsRes = await fetch(`https://api.github.com/repos/${cfg.o}/${cfg.r}/actions/runs?per_page=1&t=${Date.now()}`, { headers, cache: "no-store" });
         if (runsRes.ok) {
           const runsData = await runsRes.json();
           const sonRun = (runsData.workflow_runs || [])[0];
           if (sonRun) {
-            if (sonRun.status === "completed" && deneme >= 3) {
-              runTamamMi = true;
-            }
-            const jobsRes = await fetch(sonRun.jobs_url + `?t=${Date.now()}`, { headers, cache: "no-store" });
-            if (jobsRes.ok) {
-              const jobsData = await jobsRes.json();
-              const job = (jobsData.jobs || [])[0];
-              if (job && job.steps) {
-                const aktifStep = job.steps.find(s => s.status === "in_progress") || job.steps[job.steps.length - 1];
-                if (aktifStep && stepEl) {
-                  stepEl.textContent = "▸ GitHub Python: " + aktifStep.name;
-                }
-                const bitenSayisi = job.steps.filter(s => s.status === "completed").length;
-                const yuzde = Math.min(96, Math.max(20, Math.round((bitenSayisi / Math.max(1, job.steps.length)) * 95)));
-                if (barEl) barEl.style.width = yuzde + "%";
-                if (job.status === "completed" && deneme >= 3) {
-                  runTamamMi = true;
+            const runCreatedMs = Date.parse(sonRun.created_at || "") || 0;
+            // Sadece bu butona basıldıktan sonra başlayan yeni çalışmayı takip et
+            if (runCreatedMs >= baslangicMs) {
+              if (sonRun.status === "completed") {
+                aktifRunTamamMi = true;
+              }
+              const jobsRes = await fetch(sonRun.jobs_url + `?t=${Date.now()}`, { headers, cache: "no-store" });
+              if (jobsRes.ok) {
+                const jobsData = await jobsRes.json();
+                const job = (jobsData.jobs || [])[0];
+                if (job && job.steps) {
+                  const aktifStep = job.steps.find(s => s.status === "in_progress") || job.steps[job.steps.length - 1];
+                  if (aktifStep && stepEl) {
+                    stepEl.textContent = "▸ GitHub Python: " + aktifStep.name;
+                  }
+                  const bitenSayisi = job.steps.filter(s => s.status === "completed").length;
+                  const yuzde = Math.min(96, Math.max(20, Math.round((bitenSayisi / Math.max(1, job.steps.length)) * 95)));
+                  if (barEl) barEl.style.width = yuzde + "%";
+                  if (job.status === "completed") {
+                    aktifRunTamamMi = true;
+                  }
                 }
               }
             }
@@ -1964,16 +2007,15 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
         }
       } catch (e) {}
 
-      if (runTamamMi) {
-        isAkisiBittiSayaci += 1;
+      if (aktifRunTamamMi) {
+        yeniRunTamamSayaci += 1;
       }
 
       const yeniVeri = await githubRawCanliVeriOku();
       if (yeniVeri && yeniVeri.maclar && yeniVeri.maclar.length > 0) {
         const yeniGeldiMi = (
           yeniVeri.istek_id === istekId ||
-          (yeniVeri.timestamp && yeniVeri.timestamp >= baslangicTs && yeniVeri.istek_id !== "kurulum_paketi") ||
-          isAkisiBittiSayaci >= 2
+          (aktifRunTamamMi && yeniVeri.timestamp && yeniVeri.timestamp > baslangicTs)
         );
         if (yeniGeldiMi) {
           const korunanCfg = VERI.gh_cfg;
@@ -1989,15 +2031,17 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
         }
       }
 
-      if (isAkisiBittiSayaci >= 3) {
+      if (yeniRunTamamSayaci >= 3) {
         break;
       }
     }
 
     if (tamamlandi) {
       arayuzuBaslat();
-      if (VERI.anlik_kupon_sonucu) {
-        pythonKuponunuEkranaBas(VERI.anlik_kupon_sonucu, islemTipi === "KUPON_URET");
+      if (islemTipi === "KUPON_URET" && VERI.anlik_kupon_sonucu) {
+        pythonKuponunuEkranaBas(VERI.anlik_kupon_sonucu, true);
+      } else {
+        webAkilliKuponOlustur(islemTipi === "KUPON_URET", false);
       }
       if (islemTipi === "OZEL_MAC" && VERI.ozel_mac_sonucu) {
         suankiSeciliMacObj = VERI.ozel_mac_sonucu;
@@ -2010,6 +2054,7 @@ async function githubPythonMotorunuTetikleVeBekle(islemTipi, ekParametreler = {}
         VERI = yedekVeri;
         if (!VERI.gh_cfg || !VERI.gh_cfg.k) VERI.gh_cfg = korunanCfg;
         arayuzuBaslat();
+        webAkilliKuponOlustur(islemTipi === "KUPON_URET", false);
       }
     }
     return tamamlandi;
@@ -2301,9 +2346,7 @@ async function oturumuAc(kullanici) {
   } else {
     tumVeriyiAc(VERI);
     arayuzuBaslat();
-    if (VERI.anlik_kupon_sonucu) {
-      pythonKuponunuEkranaBas(VERI.anlik_kupon_sonucu, false);
-    }
+    webAkilliKuponOlustur(false, false);
   }
 }
 
@@ -2381,17 +2424,18 @@ function arayuzuBaslat() {
   });
 
   seciliMacAnahtari = VERI.maclar[0] ? VERI.maclar[0].ev + " - " + VERI.maclar[0].dep : "";
+
   const selKuponGun = document.getElementById("sel-kupon-gun");
   if (selKuponGun) {
     const oncekiGun = selKuponGun.value || "1";
-    const simdi = new Date();
-    const fmt = (d) => String(d.getDate()).padStart(2, '0') + "." + String(d.getMonth() + 1).padStart(2, '0');
-    const bugunStr = fmt(simdi);
+    const simdiTr = turkiyeSimdiTarihObj();
+    const fmt = (d) => String(d.getUTCDate()).padStart(2, '0') + "." + String(d.getUTCMonth() + 1).padStart(2, '0');
+    const bugunStr = fmt(simdiTr);
     selKuponGun.innerHTML = "";
     for (let g = 1; g <= 7; g++) {
-      const bitis = new Date(simdi.getTime() + (g - 1) * 86400000);
+      const bitis = new Date(simdiTr.getTime() + (g - 1) * 86400000);
       const bitisStr = fmt(bitis);
-      const tarihMetni = (g === 1) ? `(${bugunStr} Bugün / 24 Saat)` : `(${bugunStr} - ${bitisStr} Arası)`;
+      const tarihMetni = (g === 1) ? `(${bugunStr} Bugün)` : `(${bugunStr} - ${bitisStr} Arası)`;
       selKuponGun.innerHTML += `<option value="${g}" ${String(g)===String(oncekiGun)?'selected':''}>📅 ${g} Gün ${tarihMetni}</option>`;
     }
   }
@@ -2405,6 +2449,9 @@ function ligFiltrele() {
 function bultenTablosunuYenile() {
   const selLigEl = document.getElementById("sel-lig");
   const seciliLig = selLigEl ? (selLigEl.value || "VITRIN") : "VITRIN";
+  const selGunEl = document.getElementById("sel-bulten-gun");
+  const maksBultenGun = selGunEl ? parseInt(selGunEl.value || "7", 10) : 7;
+
   const tbody = document.getElementById("mac-tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
@@ -2414,7 +2461,10 @@ function bultenTablosunuYenile() {
 
   aktifMaclar = (VERI.maclar || [])
     .filter(m => {
-      if ((m.unix_zamani || 0) < simdiSn - 1800) return false;
+      if ((m.unix_zamani || 0) < simdiSn - 600) return false;
+      const mGun = macTurkiyeGunNoHesapla(m.unix_zamani);
+      m.gun_farki = mGun;
+      if (mGun > maksBultenGun) return false;
       if (seciliLig === "VITRIN") {
         if (!ONCELIKLI_LIG_SIRASI.includes(m.lig) && !m.vitrin_mi) return false;
       } else if (seciliLig !== "Tüm Ligler" && m.lig !== seciliLig) {
@@ -2434,7 +2484,7 @@ function bultenTablosunuYenile() {
     tr.id = "mac-row-" + idx;
     if (baslik === seciliMacAnahtari) tr.classList.add("selected");
     tr.onclick = () => macSatirTiklandi(idx);
-    tr.innerHTML = `<td style="color:#fbbf24;font-weight:700;">${m.tarih_str || '-'}</td><td>${m.lig}</td><td><b>${baslik}</b></td><td>${m.oran_1.toFixed(2)}</td><td>${m.oran_x.toFixed(2)}</td><td>${m.oran_2.toFixed(2)}</td>`;
+    tr.innerHTML = `<td style="color:#fbbf24;font-weight:700;">${m.tarih_str || '-'} <span style="color:#38bdf8;font-size:10.5px;">(${m.gun_farki}.G)</span></td><td>${m.lig}</td><td><b>${baslik}</b></td><td>${m.oran_1.toFixed(2)}</td><td>${m.oran_x.toFixed(2)}</td><td>${m.oran_2.toFixed(2)}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -2493,15 +2543,233 @@ function sekmeDegistir(no) {
   document.getElementById("tab-content-3").style.display = no === 3 ? "flex" : "none";
 }
 
-async function webAkilliKuponOlustur(modalGoster = true) {
-  const risk = document.getElementById("sel-kupon-risk").value;
-  const macAdet = parseInt(document.getElementById("sel-kupon-adet").value || "3", 10);
-  const gunSiniri = parseInt(document.getElementById("sel-kupon-gun").value || "7", 10);
-  await githubPythonMotorunuTetikleVeBekle("KUPON_URET", {
-    kupon_risk: risk,
-    kupon_adet: macAdet,
-    kupon_gun: gunSiniri
+function resmiPiyasaOraniHesaplaJS(mAdi, kat, m, iht) {
+  const p = m.parametreler || {};
+  const p1 = Number(p.piyasa_p1 || 0.42);
+  const px = Number(p.piyasa_px || 0.28);
+  const p2 = Number(p.piyasa_p2 || 0.30);
+  const marj = 1.058;
+  const topGol = Math.min(3.35, Math.max(1.95, 2.68 - (px - 0.265) * 6.2 + Math.abs(p1 - p2) * 0.35));
+  let pMkt = (iht / 100.0);
+
+  if (kat === "CIFTE_SANS") {
+    pMkt = mAdi.includes("1X") ? Math.min(0.92, Math.max(0.20, p1 + px)) : Math.min(0.90, Math.max(0.18, p2 + px));
+  } else if (mAdi.includes("1.5 GOL ÜST")) {
+    pMkt = 1.0 - (1 + topGol) * Math.exp(-topGol);
+  } else if (mAdi.includes("2.5 GOL ÜST")) {
+    pMkt = 1.0 - (1 + topGol + (topGol * topGol) / 2) * Math.exp(-topGol);
+  } else if (mAdi.includes("2.5 GOL ALT")) {
+    pMkt = (1 + topGol + (topGol * topGol) / 2) * Math.exp(-topGol);
+  } else if (mAdi.includes("3.5 GOL ÜST")) {
+    pMkt = 1.0 - (1 + topGol + (topGol * topGol) / 2 + (topGol * topGol * topGol) / 6) * Math.exp(-topGol);
+  }
+
+  const hamOran = 1.0 / Math.max(pMkt * marj, 0.08);
+  const adilOran = 100.0 / Math.max(iht, 5.0);
+  return Math.min(5.50, Math.max(1.14, Number((hamOran * 0.65 + adilOran * 0.94 * 0.35).toFixed(2))));
+}
+
+function pythonVerisindenKuponHesaplaJS(riskSeviyesi, macSayisi, gunSiniri) {
+  const simdiSn = Math.floor(Date.now() / 1000);
+  const gunLimit = Math.max(1, Math.min(7, parseInt(gunSiniri || 1, 10)));
+  const tumGelecek = (VERI.maclar || []).filter(m => (m.unix_zamani || 0) > simdiSn);
+
+  // Kesin Türkiye Takvim Günü Filtresi (1..gunLimit)
+  let adayMaclar = tumGelecek.filter(m => {
+    const gNo = macTurkiyeGunNoHesapla(m.unix_zamani);
+    m.gun_farki = gNo;
+    return gNo >= 1 && gNo <= gunLimit;
   });
+
+  if (adayMaclar.length < macSayisi) {
+    const kalanlar = tumGelecek
+      .filter(m => !adayMaclar.includes(m) && (m.unix_zamani || 0) <= simdiSn + gunLimit * 86400 + 43200)
+      .sort((a, b) => (a.unix_zamani || 0) - (b.unix_zamani || 0));
+    for (const ek of kalanlar) {
+      adayMaclar.push(ek);
+      if (adayMaclar.length >= macSayisi) break;
+    }
+  }
+
+  const degerlendirmeler = [];
+  for (const m of adayMaclar) {
+    macPaketiAc(m);
+    const nihai = m.nihai || [30, 28, 42];
+    const p1 = Number(nihai[2] || 0);
+    const px = Number(nihai[1] || 0);
+    const p2 = Number(nihai[0] || 0);
+    const sapma = Number(m.model_sapmasi || 4.0);
+    const guven = Number(m.guven_skoru || 65.0);
+    const brier = Number(m.opt_brier || 0.16);
+
+    const tumMarketler = [
+      { ad: "Maç Sonucu: MS 1 (Ev Kazanır)", ihtimal: p1, taban: Math.max(15, p1 - sapma * 0.8), oran: Number(m.oran_1), kat: "TARAF", sapma: sapma },
+      { ad: "Maç Sonucu: MS X (Beraberlik)", ihtimal: px, taban: Math.max(10, px - sapma * 0.8), oran: Number(m.oran_x), kat: "TARAF_SURPRIZ", sapma: sapma },
+      { ad: "Maç Sonucu: MS 2 (Dep Kazanır)", ihtimal: p2, taban: Math.max(12, p2 - sapma * 0.8), oran: Number(m.oran_2), kat: "TARAF", sapma: sapma }
+    ];
+
+    const d13List = (m.detay_13 && Array.isArray(m.detay_13.marketler)) ? m.detay_13.marketler : [];
+    for (const mk of d13List) {
+      const mAdi = mk.market || "";
+      // Sadece resmi Misli/İddaa ana marketlerini kupona dahil et (Korner/Şut/Frikik/Kart/Penaltı kupona girmez!)
+      if (mAdi.includes("KORNER") || mAdi.includes("ŞUT") || mAdi.includes("Frikik") || mAdi.includes("Penaltı") || mAdi.includes("KART")) {
+        continue;
+      }
+      if (mAdi.startsWith("Maç Sonucu:")) continue;
+
+      const iht = Number(mk.ortalama || 50);
+      let kat = "GENEL";
+      if (mAdi.includes("1.5 GOL ÜST")) kat = "GOL_15";
+      else if (mAdi.includes("2.5 GOL ÜST") || mAdi.includes("2.5 GOL ALT")) kat = "GOL_25";
+      else if (mAdi.includes("3.5 GOL ÜST") || mAdi.includes("3.5 GOL ALT")) kat = "GOL_35";
+      else if (mAdi.includes("KG VAR") || mAdi.includes("KG YOK")) kat = "KG";
+      else if (mAdi.includes("İlk Yarı")) kat = "ILK_YARI";
+      else if (mAdi.includes("Ev Sahibi") || mAdi.includes("Deplasman") || mAdi.includes("Takım Gol")) kat = "TAKIM_GOL";
+      else if (mAdi.includes("Çifte Şans")) kat = "CIFTE_SANS";
+
+      const oran = resmiPiyasaOraniHesaplaJS(mAdi, kat, m, iht);
+      tumMarketler.push({
+        ad: mAdi,
+        ihtimal: iht,
+        taban: Math.max(20, iht - sapma * 0.7),
+        oran: oran,
+        kat: kat,
+        sapma: sapma
+      });
+    }
+
+    const puanli = [];
+    for (const mk of tumMarketler) {
+      const iht = mk.ihtimal;
+      const taban = mk.taban;
+      const oran = mk.oran;
+      const kat = mk.kat;
+      const evDegeri = (iht / 100.0) * oran;
+      const kellyEdge = Math.max(0, ((iht / 100.0) * oran - 1.0) / Math.max(oran - 1.0, 0.05));
+      const vitrinBonus = m.vitrin_mi ? 4.0 : 0.0;
+      const kalibBonus = Math.max(0, (0.22 - brier) * 50.0);
+
+      let puan = 0;
+      let neden = "";
+      if (riskSeviyesi === "DUSUK") {
+        if (iht >= 64.0 && oran >= 1.16 && oran <= 1.78) {
+          puan = (iht * 0.90) + (taban * 0.65) + (guven * 0.35) + (evDegeri * 16.0) + kalibBonus + vitrinBonus - (mk.sapma * 2.2);
+          if (["CIFTE_SANS", "GOL_15", "ILK_YARI", "TAKIM_GOL", "TARAF"].includes(kat)) puan += 5.0;
+          neden = `18+10 AI En Yüksek Banko İhtimal (%${iht.toFixed(1)} | Güven: %${guven.toFixed(1)} | Sapma: ±%${mk.sapma.toFixed(1)})`;
+        } else {
+          puan = (iht * 0.60) + (taban * 0.35) - (mk.sapma * 2.0) - Math.abs(oran - 1.42) * 12.0;
+          neden = `Yüksek Kalibreli Banko İhtimal (%${iht.toFixed(1)})`;
+        }
+      } else if (riskSeviyesi === "ORTA") {
+        if (oran >= 1.40 && oran <= 2.35 && iht >= 51.0) {
+          puan = (iht * 0.78) + (taban * 0.42) + (evDegeri * 40.0) + (kellyEdge * 30.0) + (guven * 0.28) + kalibBonus + vitrinBonus - (mk.sapma * 1.6);
+          if (["GOL_25", "KG", "TARAF", "TAKIM_GOL", "ILK_YARI"].includes(kat)) puan += 5.5;
+          neden = `Resmi Market Optimum Value & AI Konsensüsü (AI: %${iht.toFixed(1)} | EV: ${evDegeri.toFixed(2)})`;
+        } else {
+          puan = (iht * 0.50) + (evDegeri * 18.0) - (mk.sapma * 1.6);
+          neden = `Dengeli Oran & Konsensüs (%${iht.toFixed(1)})`;
+        }
+      } else {
+        if (oran >= 1.85 && oran <= 4.85 && iht >= 30.0) {
+          puan = (evDegeri * 54.0) + (kellyEdge * 38.0) + (iht * 0.55) + (taban * 0.30) + (oran * 7.0) + (guven * 0.20) + vitrinBonus - (mk.sapma * 1.1);
+          if (["GOL_35", "TARAF", "TARAF_SURPRIZ", "KG", "GOL_25"].includes(kat)) puan += 6.0;
+          neden = `Yüksek Oran & Value Fırsatı (Oran: ${oran.toFixed(2)} | AI: %${iht.toFixed(1)} | EV: ${evDegeri.toFixed(2)})`;
+        } else {
+          puan = (evDegeri * 22.0) + (iht * 0.35);
+          neden = `Yüksek Oran / Sürpriz Değerlendirmesi (Oran: ${oran.toFixed(2)})`;
+        }
+      }
+
+      puanli.push({ ad: mk.ad, oran: oran, ihtimal: Number(iht.toFixed(1)), kat: kat, puan: puan, neden: neden });
+    }
+
+    puanli.sort((a, b) => b.puan - a.puan);
+    degerlendirmeler.push({ mac: m, enIyiPuan: puanli[0].puan, adaylar: puanli.slice(0, 5) });
+  }
+
+  degerlendirmeler.sort((a, b) => b.enIyiPuan - a.enIyiPuan);
+
+  const secilenPaketler = [];
+  const ligSayaci = {};
+  for (const p of degerlendirmeler) {
+    if (secilenPaketler.length >= macSayisi) break;
+    const l = p.mac.lig;
+    if ((ligSayaci[l] || 0) < 2) {
+      secilenPaketler.push(p);
+      ligSayaci[l] = (ligSayaci[l] || 0) + 1;
+    }
+  }
+  if (secilenPaketler.length < macSayisi) {
+    for (const p of degerlendirmeler) {
+      if (secilenPaketler.length >= macSayisi) break;
+      if (!secilenPaketler.includes(p)) secilenPaketler.push(p);
+    }
+  }
+
+  const katSayaci = {};
+  const kuponMaclar = [];
+  let topOran = 1.0;
+  let birlesikOl = 1.0;
+
+  for (const p of secilenPaketler) {
+    const m = p.mac;
+    let secilenMk = p.adaylar[0];
+    for (const mk of p.adaylar) {
+      if (!katSayaci[mk.kat] && mk.puan >= p.adaylar[0].puan - 4.5) {
+        secilenMk = mk;
+        break;
+      }
+    }
+    katSayaci[secilenMk.kat] = (katSayaci[secilenMk.kat] || 0) + 1;
+    topOran *= secilenMk.oran;
+    birlesikOl *= (secilenMk.ihtimal / 100.0);
+
+    kuponMaclar.push({
+      tarih_str: m.tarih_str || "-",
+      lig: m.lig,
+      ev: m.ev,
+      dep: m.dep,
+      karsilasma: `${m.ev} - ${m.dep}`,
+      tahmin: secilenMk.ad,
+      oran: secilenMk.oran,
+      ihtimal: secilenMk.ihtimal,
+      neden: secilenMk.neden,
+      mac_detay: m
+    });
+  }
+
+  const ortIht = kuponMaclar.length > 0
+    ? kuponMaclar.reduce((s, x) => s + x.ihtimal, 0) / kuponMaclar.length
+    : 0.0;
+
+  return {
+    risk_seviyesi: riskSeviyesi,
+    mac_sayisi: kuponMaclar.length,
+    gun_siniri: gunLimit,
+    toplam_oran: Number(topOran.toFixed(2)),
+    ortalama_ihtimal: Number(ortIht.toFixed(1)),
+    birlesik_olasilik: Number((birlesikOl * 100.0).toFixed(1)),
+    maclar: kuponMaclar
+  };
+}
+
+async function webAkilliKuponOlustur(modalGoster = true, buluttanZorla = false) {
+  const risk = document.getElementById("sel-kupon-risk").value || "ORTA";
+  const macAdet = parseInt(document.getElementById("sel-kupon-adet").value || "3", 10);
+  const gunSiniri = parseInt(document.getElementById("sel-kupon-gun").value || "1", 10);
+
+  if (buluttanZorla) {
+    await githubPythonMotorunuTetikleVeBekle("KUPON_URET", {
+      kupon_risk: risk,
+      kupon_adet: macAdet,
+      kupon_gun: gunSiniri
+    });
+    return;
+  }
+
+  const hesaplananKupon = pythonVerisindenKuponHesaplaJS(risk, macAdet, gunSiniri);
+  VERI.anlik_kupon_sonucu = hesaplananKupon;
+  pythonKuponunuEkranaBas(hesaplananKupon, modalGoster);
 }
 
 async function ozelMacAnaliz(kullaniciTikladi = true) {
@@ -2521,20 +2789,20 @@ async function webtenYeniBultenVeCSVIndir(manuelTiklandi = false) {
 function pythonKuponunuEkranaBas(kuponSonuc, modalGoster = true) {
   if (!kuponSonuc || !kuponSonuc.maclar) return;
   const risk = kuponSonuc.risk_seviyesi || "ORTA";
-  const gunSiniri = kuponSonuc.gun_siniri || 7;
-  const riskEtiket = risk === "DUSUK" ? "🛡️ DÜŞÜK RİSK (GITHUB PYTHON 18+10 AI BANKO KUPON)" : (risk === "ORTA" ? "⚖️ ORTA RİSK (GITHUB PYTHON 18+10 AI VALUE KUPON)" : "🔥 YÜKSEK RİSK (GITHUB PYTHON 18+10 AI SÜRPRİZ KUPONU)");
-  const gunEtiket = gunSiniri === 1 ? "1. Gün (Bugün / 24 Saat)" : `${gunSiniri} Günlük Bülten`;
+  const gunSiniri = kuponSonuc.gun_siniri || 1;
+  const riskEtiket = risk === "DUSUK" ? "🛡️ DÜŞÜK RİSK (18+10 AI EN BANKO KUPON)" : (risk === "ORTA" ? "⚖️ ORTA RİSK (18+10 AI RESMİ MARKET VALUE KUPON)" : "🔥 YÜKSEK RİSK (18+10 AI SÜRPRİZ KUPONU)");
+  const gunEtiket = gunSiniri === 1 ? "Sadece 1. Gün (Bugünün Maçları)" : `1 - ${gunSiniri}. Gün Arası Maçlar`;
 
   document.getElementById("mkupon-ozet").textContent =
     `${riskEtiket} | ${kuponSonuc.maclar.length} Maç (${gunEtiket}) ➔ TOPLAM ORAN: ${Number(kuponSonuc.toplam_oran).toFixed(2)}`;
   document.getElementById("mkupon-alt-ozet").textContent =
-    `🧠 GitHub Python Ortalama AI İhtimali: %${Number(kuponSonuc.ortalama_ihtimal).toFixed(1)} | Birleşik Olasılık: %${Number(kuponSonuc.birlesik_olasilik).toFixed(1)}`;
+    `🧠 Ortalama Yapay Zeka İhtimali: %${Number(kuponSonuc.ortalama_ihtimal).toFixed(1)} | Birleşik Olasılık: %${Number(kuponSonuc.birlesik_olasilik).toFixed(1)}`;
 
   const tbody = document.getElementById("mkupon-tbody");
   tbody.innerHTML = "";
   let metinRapor = "===================================================================================\n";
-  metinRapor += ` 🤖 OMEGA QUANTUM AI v6.5 - GITHUB PYTHON ANLIK AKILLI KUPON (${riskEtiket})\n`;
-  metinRapor += ` 📅 Filtre: ${gunEtiket} | Maç Sayısı: ${kuponSonuc.maclar.length} | Toplam Oran: ${Number(kuponSonuc.toplam_oran).toFixed(2)}\n`;
+  metinRapor += ` 🤖 OMEGA QUANTUM AI v6.5 - AKILLI KUPON (${riskEtiket})\n`;
+  metinRapor += ` 📅 Gün Filtresi: ${gunEtiket} | Maç Sayısı: ${kuponSonuc.maclar.length} | Toplam Oran: ${Number(kuponSonuc.toplam_oran).toFixed(2)}\n`;
   metinRapor += "===================================================================================\n\n";
 
   kuponSonuc.maclar.forEach((k, i) => {
@@ -2572,14 +2840,14 @@ function modal13Ac(m) {
   const d13 = m.detay_13;
 
   document.getElementById("m13-baslik").textContent =
-    `🔥 ${m.ev.toUpperCase()} vs ${m.dep.toUpperCase()} (${m.tarih_str || '-'}) — GITHUB PYTHON 13 SİSTEMLİ TÜM İSTATİSTİKLER`;
+    `🔥 ${m.ev.toUpperCase()} vs ${m.dep.toUpperCase()} (${m.tarih_str || '-'}) — GITHUB PYTHON 13 SİSTEMLİ RESMİ MAÇ MARKETLERİ`;
 
   const eb = d13.en_banko;
   document.getElementById("m13-en-banko").textContent =
     `🏆 EN BANKO TAHMİN: ${eb.market}  ➔  13 Sistem Ortalaması: %${eb.ortalama.toFixed(2)}  (Adil Oran: ${eb.adil_oran.toFixed(2)} | ${eb.karar})`;
 
   const ilk3 = (d13.ilk_3_banko || []).map((x, i) => `${i+1}) ${x.market} (%${x.ortalama.toFixed(1)})`).join("   |   ");
-  document.getElementById("m13-ust-ozet").textContent = `⭐ En Yüksek 3 Banko İstatistik:   ${ilk3}`;
+  document.getElementById("m13-ust-ozet").textContent = `⭐ En Yüksek 3 Banko Market:   ${ilk3}`;
 
   const mTbody = document.getElementById("m13-market-tbody");
   mTbody.innerHTML = "";
@@ -2654,10 +2922,10 @@ function analiziEkranaBas(m) {
 
   const enBankoText = (m.detay_13 && m.detay_13.en_banko)
     ? `${m.detay_13.en_banko.market} (%${m.detay_13.en_banko.ortalama.toFixed(1)})`
-    : `1.5 GOL ÜST (%${m.ust_1_5.toFixed(1)})`;
+    : `Toplam Gol: 1.5 GOL ÜST (%${m.ust_1_5.toFixed(1)})`;
 
   document.getElementById("lbl-mac-baslik").textContent =
-    `🏟️ [${m.tarih_str || '-'}] ${m.ev.toUpperCase()} vs ${m.dep.toUpperCase()}  |  ${m.lig}  |  Oranlar: ${m.oran_1.toFixed(2)} - ${m.oran_x.toFixed(2)} - ${m.oran_2.toFixed(2)}`;
+    `🏟️ [${m.tarih_str || '-'} | ${m.gun_farki || 1}. Gün] ${m.ev.toUpperCase()} vs ${m.dep.toUpperCase()}  |  ${m.lig}  |  Oranlar: ${m.oran_1.toFixed(2)} - ${m.oran_x.toFixed(2)} - ${m.oran_2.toFixed(2)}`;
   document.getElementById("lbl-konsensus").textContent =
     `GITHUB PYTHON 1.000 DENEME KONSENSÜS:  MS 1: %${nihai[2].toFixed(2)}  |  MS X: %${nihai[1].toFixed(2)}  |  MS 2: %${nihai[0].toFixed(2)}  (Güven Endeksi: %${m.guven_skoru.toFixed(1)})`;
   document.getElementById("lbl-banko").textContent =
@@ -2686,7 +2954,7 @@ function analiziEkranaBas(m) {
   const skorStr = m.skorlar.map(s => `${s[0]} (%${s[1].toFixed(1)})`).join("  |  ");
   let r = "";
   r += "===================================================================================\n";
-  r += ` 1. TAKIM İSTATİSTİKLERİ (${m.lig}) - Maç Tarihi: ${m.tarih_str || '-'}\n`;
+  r += ` 1. TAKIM İSTATİSTİKLERİ (${m.lig}) - Maç Tarihi: ${m.tarih_str || '-'} (${m.gun_farki || 1}. Gün)\n`;
   r += "===================================================================================\n";
   r += ` • ${m.ev.padEnd(18)} -> ELO: ${p.ev_elo.toFixed(0)} | xG: ${p.ev_xg.toFixed(2)} | xGA: ${p.ev_xga.toFixed(2)} | Form: ${p.ev_form.toFixed(0)}/15 | Şut: ${p.ev_isabetli_sut.toFixed(1)}\n`;
   r += ` • ${m.dep.padEnd(18)} -> ELO: ${p.dep_elo.toFixed(0)} | xG: ${p.dep_xg.toFixed(2)} | xGA: ${p.dep_xga.toFixed(2)} | Form: ${p.dep_form.toFixed(0)}/15 | Şut: ${p.dep_isabetli_sut.toFixed(1)}\n\n`;
@@ -2712,14 +2980,14 @@ function analiziEkranaBas(m) {
 </body>
 </html>"""
         return html_sablon.replace("__OMEGA_JSON_PAYLOAD__", json_str)
-
 class CanliInternetVeriMotoru:
     """
     %100 DİNAMİK CANLI İNTERNET VERİ, GEÇMİŞ MAÇ VE KADRO/FORM MOTORU (Sıfır Uydurma/Sabit Maç):
     1) Hem bilgisayarda hem de GitHub Actions Python sunucusunda çalışırken Nesine/İddaa,
        Mackolik, SofaScore, ESPN ve Football-Data üzerinden o anki dakikadan (simdi_utc) SONRA
        başlayacak gerçek maçları dinamik olarak çeker.
-    2) Takımların son 3 sezonluk CSV geçmişini ve son 60 günün oynanmış maçlarını üstel ağırlıklı
+    2) Maçların hangi güne ait olduğunu (1. Gün = Bugün ... 7. Gün) Türkiye Saatine (UTC+3) göre kesin hesaplar.
+    3) Takımların son 3 sezonluk CSV geçmişini ve son 60 günün oynanmış maçlarını üstel ağırlıklı
        olarak analiz eder; xG ve xGA değerlerini şişirmeden gerçek lig ortalamalarıyla (1.34 gol) kalibre eder.
     """
     LIGLER = {
@@ -2903,9 +3171,8 @@ class CanliInternetVeriMotoru:
     @staticmethod
     def _gercekci_xg_hesapla(ort_gol: float, ort_isabetli_sut: float, ort_korner: float) -> float:
         """
-        Şişirilmiş eski xG formülü yerine Opta/StatsBomb standartlarına uygun gerçekçi xG hesabı:
-        1 isabetli şut ~ 0.30 xG, 1 korner ~ 0.035 xG katkı verir.
-        Sıradan bir takım (1.35 gol, 4.4 şut, 4.8 korner) için ~1.33 xG üretir (eski kodda 2.09 üretiyordu).
+        Opta/StatsBomb standartlarına uygun gerçekçi xG hesabı:
+        1 isabetli şut ~ 0.295 xG, 1 korner ~ 0.035 xG katkı verir.
         """
         sut_xg = float(ort_isabetli_sut) * 0.295
         korner_xg = float(ort_korner) * 0.035
@@ -2997,7 +3264,7 @@ class CanliInternetVeriMotoru:
         return ""
 
     def _yerel_alt_lig_takimlarini_ekle(self):
-        """Bilinen Türk ve Avrupa takımlarının gerçekçi başlangıç profillerini hazırlar (canlı geçmiş maçlarla güncellenir)."""
+        """Bilinen Türk ve Avrupa takımlarının gerçekçi başlangıç profillerini hazırlar."""
         ek_takimlar = [
             ('Türkiye Süper Lig', 'Galatasaray', 1765, 1.98, 0.92, 12.5, 6.2, 6.4),
             ('Türkiye Süper Lig', 'Fenerbahçe', 1755, 1.94, 0.94, 12.0, 6.0, 6.2),
@@ -3340,8 +3607,8 @@ class CanliInternetVeriMotoru:
         """
         Her çağrıldığında:
         1) Takımların son 3 sezonluk CSV geçmişini + son 60 günün maçlarını indirir.
-        2) Veri sızıntısına (data leakage) yol açan yapay kopyalama yapmadan gerçek kronolojik maç matrisini oluşturur.
-        3) Şu anki dakikadan (simdi_utc) sonra başlayacak gerçek maçları bültene koyar.
+        2) Şu anki dakikadan (simdi_utc) sonra başlayacak gerçek maçları Türkiye saatine (UTC+3) göre
+           1. Günden 7. Güne kadar sınıflandırarak bültene koyar.
         """
         self.verileri_sifirla()
         self._yerel_alt_lig_takimlarini_ekle()
@@ -3624,9 +3891,7 @@ class CanliInternetVeriMotoru:
             ham_csv_df = ham_csv_df.dropna(subset=['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR']).copy()
             for col, def_val in [
                 ('HTHG', 0.6), ('HTAG', 0.5), ('HST', 4.4), ('AST', 3.8),
-                ('HC', 5.1), ('AC', 4.4), ('HF', 11.5), ('AF', 11.8),
-                ('HY', 1.8), ('AY', 2.0), ('HR', 0.08), ('AR', 0.09),
-                ('B365H', 2.15), ('B365D', 3.40), ('B365A', 3.45)
+                ('HC', 5.1), ('AC', 4.4), ('B365H', 2.15), ('B365D', 3.40), ('B365A', 3.45)
             ]:
                 if col not in ham_csv_df.columns:
                     ham_csv_df[col] = def_val
@@ -3669,8 +3934,6 @@ class CanliInternetVeriMotoru:
                 hthg, htag = float(row['HTHG']), float(row['HTAG'])
                 hst, ast = float(row['HST']), float(row['AST'])
                 hc, ac = float(row['HC']), float(row['AC'])
-                hf, af = float(row['HF']), float(row['AF'])
-                toplam_kart = float(row['HY']) + float(row['AY']) + (float(row['HR']) + float(row['AR'])) * 2.0
                 hedef = 2 if fthg > ftag else (1 if fthg == ftag else 0)
 
                 egitim_satirlari.append({
@@ -3688,12 +3951,7 @@ class CanliInternetVeriMotoru:
                     'ust_25_hedef': 1 if (fthg + ftag) >= 3 else 0,
                     'ust_35_hedef': 1 if (fthg + ftag) >= 4 else 0,
                     'kg_hedef': 1 if (fthg >= 1 and ftag >= 1) else 0,
-                    'iy_05_hedef': 1 if (hthg + htag) >= 1 else 0,
-                    'korner_85_hedef': 1 if (hc + ac) >= 9 else 0,
-                    'sut_85_hedef': 1 if (hst + ast) >= 9 else 0,
-                    'kart_35_hedef': 1 if toplam_kart >= 4 else 0,
-                    'frikik_hedef': 1 if ((hf + af) >= 24 and (hst + ast) >= 9) else 0,
-                    'penalti_hedef': 1 if ((hc + ac) >= 11 and (fthg + ftag) >= 3) else 0
+                    'iy_05_hedef': 1 if (hthg + htag) >= 1 else 0
                 })
 
                 gercek_s = 1.0 if hedef == 2 else (0.5 if hedef == 1 else 0.0)
@@ -3781,12 +4039,7 @@ class CanliInternetVeriMotoru:
                 'ust_25_hedef': 1 if (fthg + ftag) >= 3 else 0,
                 'ust_35_hedef': 1 if (fthg + ftag) >= 4 else 0,
                 'kg_hedef': 1 if (fthg >= 1 and ftag >= 1) else 0,
-                'iy_05_hedef': 1 if (fthg + ftag) >= 2 else 0,
-                'korner_85_hedef': 1 if (hc + ac) >= 9 else 0,
-                'sut_85_hedef': 1 if (hst + ast) >= 9 else 0,
-                'kart_35_hedef': 1 if abs(ev_elo - dep_elo) < 150 else 0,
-                'frikik_hedef': 1 if (hst + ast) >= 9.5 else 0,
-                'penalti_hedef': 1 if ((hc + ac) >= 11 and (fthg + ftag) >= 3) else 0
+                'iy_05_hedef': 1 if (fthg + ftag) >= 2 else 0
             })
 
             gercek_skor_ev = 1.0 if hedef == 2 else (0.5 if hedef == 1 else 0.0)
@@ -3851,8 +4104,7 @@ class CanliInternetVeriMotoru:
             gorulen_mac_anahtarlari.add(anahtar)
             gorulen_mac_anahtarlari.add(kisa_anahtar)
 
-            fark_saat = max(0.0, (ts_val - guncel_utc) / 3600.0)
-            gun_farki = 1 if fark_saat <= 26.0 else (2 if fark_saat <= 52.0 else min(14, int(fark_saat // 24) + 1))
+            gun_farki = _turkiye_gun_farki_hesapla(ts_val)
             self.gelecek_maclar.append(self._mac_sozlugu_hazirla(
                 lig_adi, ev, dep, o1, ox, o2,
                 tarih_str=yerel_dt.strftime("%d.%m %H:%M"),
@@ -3876,8 +4128,7 @@ class CanliInternetVeriMotoru:
             gorulen_mac_anahtarlari.add(anahtar)
             gorulen_mac_anahtarlari.add(kisa_anahtar)
 
-            fark_saat = max(0.0, (ts_val - guncel_utc) / 3600.0)
-            gun_farki = 1 if fark_saat <= 26.0 else (2 if fark_saat <= 52.0 else min(14, int(fark_saat // 24) + 1))
+            gun_farki = _turkiye_gun_farki_hesapla(ts_val)
             self.gelecek_maclar.append(self._mac_sozlugu_hazirla(
                 lig_adi, ev, dep, o1, ox, o2,
                 tarih_str=yerel_dt.strftime("%d.%m %H:%M"),
@@ -3901,7 +4152,7 @@ class CanliInternetVeriMotoru:
 
         return self.egitim_df
 
-    def _mac_sozlugu_hazirla(self, lig, ev, dep, oran1=None, oranx=None, oran2=None, tarih_str=None, gun_farki=1, unix_zamani=None, kadro_ev=1.0, kadro_dep=1.0):
+    def _mac_sozlugu_hazirla(self, lig, ev, dep, oran1=None, oranx=None, oran2=None, tarih_str=None, gun_farki=None, unix_zamani=None, kadro_ev=1.0, kadro_dep=1.0):
         p_ev = self.takim_profilleri[ev]
         p_dep = self.takim_profilleri[dep]
 
@@ -3910,6 +4161,8 @@ class CanliInternetVeriMotoru:
         if tarih_str is None:
             yerel_dt = datetime.datetime.fromtimestamp(unix_zamani, datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=3)
             tarih_str = yerel_dt.strftime("%d.%m %H:%M")
+        if gun_farki is None:
+            gun_farki = _turkiye_gun_farki_hesapla(unix_zamani)
 
         efektif_ev_elo = float(p_ev['elo']) + (float(kadro_ev) - 1.0) * 140.0
         efektif_dep_elo = float(p_dep['elo']) + (float(kadro_dep) - 1.0) * 140.0
@@ -3998,11 +4251,6 @@ class CanliInternetVeriMotoru:
         ust_35 = np.where((g_ev + g_dep) >= 4, 1, 0)
         kg_var = np.where((g_ev >= 1) & (g_dep >= 1), 1, 0)
         iy_05 = np.where((iy_ev + iy_dep) >= 1, 1, 0)
-        kor_85 = np.where((ev_kor + dep_kor) >= 9.0, 1, 0)
-        sut_85 = np.where((ev_sut + dep_sut) >= 9.0, 1, 0)
-        kart_35 = np.where(np.abs(ev_elo - dep_elo) < 150, 1, 0)
-        frikik_h = np.where((ev_sut + dep_sut) >= 9.2, 1, 0)
-        penalti_h = np.where(((ev_kor + dep_kor) >= 10.5) & ((g_ev + g_dep) >= 3), 1, 0)
 
         p1 = np.clip(1.0 / (1.0 + 10.0 ** (-(ev_elo + 55 - dep_elo)/400.0)) * 0.74, 0.12, 0.80)
         px = np.clip(0.27 - abs(p1 - 0.45)*0.20, 0.13, 0.33)
@@ -4017,9 +4265,7 @@ class CanliInternetVeriMotoru:
             'ev_korner': ev_kor, 'dep_korner': dep_kor,
             'piyasa_p1': p1, 'piyasa_px': px, 'piyasa_p2': p2,
             'sonuc': sonuc, 'ust_15_hedef': ust_15, 'ust_25_hedef': ust_25,
-            'ust_35_hedef': ust_35, 'kg_hedef': kg_var, 'iy_05_hedef': iy_05,
-            'korner_85_hedef': kor_85, 'sut_85_hedef': sut_85, 'kart_35_hedef': kart_35,
-            'frikik_hedef': frikik_h, 'penalti_hedef': penalti_h
+            'ust_35_hedef': ust_35, 'kg_hedef': kg_var, 'iy_05_hedef': iy_05
         })
         return self.ozellik_muhendisligi(df)
 
@@ -4045,16 +4291,15 @@ class CanliInternetVeriMotoru:
 class DerinYapayZekaVeSimulasyonMotoru:
     """
     18 ANA SİSTEM (14 ML/DNN + 1 Meta-Stacking + 1 Dixon-Coles Poisson + 1 100.000 Monte Carlo + 1 Piyasa)
-    + 10 YAN MARKET YAPAY ZEKASI (40 Kalibreli Scikit-Learn modeli)
+    + RESMİ MİSLİ / İDDAA GOL & KG & İLK YARI YAPAY ZEKA MODELLERİ
     + 1.000 DENEMELİ EPİSTEMİK KALİBRELİ KUANTUM OPTİMİZASYONU:
-    - Olasılıkların yapay olarak %90+ şişmesini önleyen gerçekçi Dixon-Coles ve Negatif Binom Monte Carlo.
-    - Hem GitHub Bulut Python'da hem de masaüstü Python'da 5 boyutlu (Kalibreli Olasılık + Düşük Sistem Sapması +
-      4-Senaryo Dayanıklılığı + Gerçek Piyasa EV + Kesirli Kelly) analizle en doğru kuponu üreten Akıllı Kupon Motoru.
+    - Frikik, Penaltı, 8.5 Şut Üst ve 8.5 Korner Üst gibi uydurma/yanıltıcı marketler tamamen çıkarılmıştır.
+    - Hem 13'lü İstatistik Penceresi hem de Akıllı Kupon Motoru yalnızca gerçek ve resmi bahis marketlerini
+      (MS 1/X/2, Çifte Şans 1X/X2/12, 1.5 Üst, 2.5 Alt/Üst, 3.5 Alt/Üst, KG Var/Yok, İY 0.5 Üst, Takım Gol)
+      1'den 7'ye kadar seçilen Türkiye takvim gününe göre en yüksek kazanma ihtimaliyle seçer.
     """
     HEDEF_SUTUNLAR = (
-        'sonuc', 'ust_15_hedef', 'ust_25_hedef', 'ust_35_hedef', 'kg_hedef',
-        'iy_05_hedef', 'korner_85_hedef', 'sut_85_hedef', 'kart_35_hedef',
-        'frikik_hedef', 'penalti_hedef'
+        'sonuc', 'ust_15_hedef', 'ust_25_hedef', 'ust_35_hedef', 'kg_hedef', 'iy_05_hedef'
     )
 
     def __init__(self, platform_ayarlari: PlatformAyarlari):
@@ -4151,10 +4396,10 @@ class DerinYapayZekaVeSimulasyonMotoru:
         """
         Zaman Sıralı Kesin Ayrım (Strict Chronological Out-Of-Sample Validation):
         1) Modeller önce yalnızca ilk %80'lik geçmiş maçlarda eğitilir ve son %20'lik maçlarda gerçek Brier + Log-Loss ölçülür.
-        2) Ardından tüm modeller ve 10 yan market modeli CV=3 Sigmoid Kalibrasyonu ile eğitilir.
+        2) Ardından tüm ana modeller ve resmi gol/KG/İY market modelleri CV=3 Sigmoid Kalibrasyonu ile eğitilir.
         """
         mevcut_hedefler = [c for c in self.HEDEF_SUTUNLAR if c in df.columns]
-        X = df.drop(columns=mevcut_hedefler)
+        X = df.drop(columns=mevcut_hedefler, errors='ignore')
         y = df['sonuc'].values
         self.ozellik_sutunlari = X.columns.tolist()
 
@@ -4240,11 +4485,9 @@ class DerinYapayZekaVeSimulasyonMotoru:
             self.model_agirliklari[k] /= toplam_agirlik
 
         if durum_callback:
-            durum_callback(f"[{sayac}/{toplam_m}] 10 Yan Market (1.5/2.5/3.5 Üst, KG, İY, Korner, Şut, Kart, Frikik, Penaltı) Kalibreli AI Eğitiliyor...", 95)
+            durum_callback(f"[{sayac}/{toplam_m}] Resmi Misli/İddaa Gol & KG Market Modelleri (1.5/2.5/3.5 Üst, KG, İY 0.5) Eğitiliyor...", 95)
 
         toplam_gol_sim = np.random.poisson(np.clip(df_son['ev_xg'] + df_son['dep_xg'], 0.9, 4.8))
-        toplam_korner_sim = np.random.poisson(np.clip(df_son['ev_korner'] + df_son['dep_korner'], 4.0, 15.0))
-        toplam_sut_sim = np.random.poisson(np.clip(df_son['ev_isabetli_sut'] + df_son['dep_isabetli_sut'], 3.0, 15.0))
         elo_denge = 1.0 - np.clip(np.abs(df_son['elo_farki']) / 380.0, 0.0, 0.85)
 
         yan_market_hedefleri = {
@@ -4252,12 +4495,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
             'ust_25': df_son['ust_25_hedef'].values if 'ust_25_hedef' in df_son else (toplam_gol_sim >= 3).astype(int),
             'ust_35': df_son['ust_35_hedef'].values if 'ust_35_hedef' in df_son else (toplam_gol_sim >= 4).astype(int),
             'kg_var': df_son['kg_hedef'].values if 'kg_hedef' in df_son else ((toplam_gol_sim >= 2) & (elo_denge > 0.45)).astype(int),
-            'iy_05_ust': df_son['iy_05_hedef'].values if 'iy_05_hedef' in df_son else (np.random.poisson(np.clip((df_son['ev_xg'] + df_son['dep_xg']) * 0.44, 0.3, 2.5)) >= 1).astype(int),
-            'korner_85_ust': df_son['korner_85_hedef'].values if 'korner_85_hedef' in df_son else (toplam_korner_sim >= 9).astype(int),
-            'sut_85_ust': df_son['sut_85_hedef'].values if 'sut_85_hedef' in df_son else (toplam_sut_sim >= 9).astype(int),
-            'kart_35_ust': df_son['kart_35_hedef'].values if 'kart_35_hedef' in df_son else (np.random.poisson(3.3 + elo_denge * 1.4) >= 4).astype(int),
-            'frikik_tehlike': df_son['frikik_hedef'].values if 'frikik_hedef' in df_son else (np.random.poisson(0.22 + (df_son['ev_isabetli_sut'] + df_son['dep_isabetli_sut']) * 0.065) >= 1).astype(int),
-            'penalti_var': df_son['penalti_hedef'].values if 'penalti_hedef' in df_son else (np.random.poisson(0.14 + (df_son['ev_xg'] + df_son['dep_xg']) * 0.055) >= 1).astype(int)
+            'iy_05_ust': df_son['iy_05_hedef'].values if 'iy_05_hedef' in df_son else (np.random.poisson(np.clip((df_son['ev_xg'] + df_son['dep_xg']) * 0.44, 0.3, 2.5)) >= 1).astype(int)
         }
 
         for market_kodu, y_yan in yan_market_hedefleri.items():
@@ -4304,7 +4542,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
                         est.n_jobs = 1
 
         if durum_callback:
-            durum_callback("18 Ana Sistem + 10 Yan Market Kalibreli AI + 1.000 Deneme Optimizasyonu Hazır!", 100)
+            durum_callback("18 Ana Sistem + Resmi Misli/İddaa Gol/KG Modelleri + 1.000 Deneme Optimizasyonu Hazır!", 100)
 
     def canli_mikro_ogrenme_adimi(self):
         if self.X_scaled_son is None or len(self.X_scaled_son) < 150:
@@ -4333,8 +4571,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
         """
         Gerçekçi Kalibre Edilmiş Dixon-Coles Çift Değişkenli (Bivariate) Poisson Matrisi:
         - Lig ortalaması (mu_lig = 1.34 gol/takım) etrafında normalize edilmiş hücum ve savunma çarpanları.
-        - Aşırı ELO veya form farklarının toplam gol beklentisini yapay olarak 4-5 gole şişirmesini
-          engelleyen hiperbolik tanjant (np.tanh) sönümlemesi.
         """
         lig_ort = 1.34
         elo_fark = p['ev_elo'] - p['dep_elo']
@@ -4396,11 +4632,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
     @staticmethod
     def coklu_senaryo_monte_carlo(lambda_ev, lambda_dep, p=None, iterasyon=100000):
         """
-        Sıfır Sapmalı (Zero-Bias) 100.000 İterasyonlu 4-Senaryolu Gamma-Poisson Monte Carlo Motoru:
-        - 4 senaryonun ağırlıklı çarpan ortalaması tam olarak 1.0000'e eşittir:
-          0.60*(1.00) + 0.18*(1.22) + 0.10*(1.00) + 0.12*(0.67) = 1.0000
-        - Böylece senaryolar gol beklentisini yapay olarak yukarı şişirmez, yalnızca dağılımın
-          kuyruk riskini (stres testini) gerçekçi şekilde modeller.
+        Sıfır Sapmalı (Zero-Bias) 100.000 İterasyonlu 4-Senaryolu Gamma-Poisson Monte Carlo Motoru.
         """
         rng = np.random.default_rng()
         n_normal = int(iterasyon * 0.60)
@@ -4428,18 +4660,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
         tum_dep = np.concatenate([dep_1, dep_2, dep_3a, dep_3b, dep_4])
         toplam_gol = tum_ev + tum_dep
 
-        beklenen_korner = float((p.get('ev_korner', 4.9) + p.get('dep_korner', 4.4)) if p else 9.3)
-        beklenen_sut = float((p.get('ev_isabetli_sut', 4.4) + p.get('dep_isabetli_sut', 3.9)) if p else 8.3)
-        elo_yakinlik = float(max(0.0, 1.0 - abs(p.get('ev_elo', 1600) - p.get('dep_elo', 1600)) / 350.0) if p else 0.5)
-
-        gol_sapma_orani = np.clip(toplam_gol / max(lambda_ev + lambda_dep, 1.2), 0.65, 1.45)
         iy_gol_sim = rng.poisson((lambda_ev + lambda_dep) * 0.435, iterasyon)
-        korner_sim = rng.poisson(np.maximum(2.5, beklenen_korner * (0.88 + 0.12 * gol_sapma_orani)), iterasyon)
-        sut_sim = rng.poisson(np.maximum(2.2, beklenen_sut * (0.84 + 0.16 * gol_sapma_orani)), iterasyon)
-        kart_sim = rng.poisson(3.25 + elo_yakinlik * 1.25, iterasyon)
-        frikik_lambda = 0.18 + beklenen_sut * 0.052 + beklenen_korner * 0.022
-        penalti_lambda = 0.12 + (lambda_ev + lambda_dep) * 0.048 + beklenen_korner * 0.012
-
         ev_3_tum = np.concatenate([ev_3a, ev_3b])
         dep_3_tum = np.concatenate([dep_3a, dep_3b])
 
@@ -4473,11 +4694,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
             'ust_3_5': float(np.mean(toplam_gol >= 4)),
             'kg_var': float(np.mean((tum_ev >= 1) & (tum_dep >= 1))),
             'iy_05_ust': float(np.mean(iy_gol_sim >= 1)),
-            'korner_85_ust': float(np.mean(korner_sim >= 9)),
-            'sut_85_ust': float(np.mean(sut_sim >= 9)),
-            'kart_35_ust': float(np.mean(kart_sim >= 4)),
-            'frikik_tehlike': float(np.mean(rng.poisson(frikik_lambda, iterasyon) >= 1)),
-            'penalti_var': float(np.mean(rng.poisson(penalti_lambda, iterasyon) >= 1)),
             'ev_1_5_ust': float(np.mean(tum_ev >= 2)),
             'dep_0_5_ust': float(np.mean(tum_dep >= 1)),
             'senaryolar': senaryo_detay
@@ -4485,10 +4701,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
 
     def bin_denemeli_kuantum_optimizasyonu(self, bireysel_sonuclar, ai_ortak, piyasa_ol, poisson_ol, mc_ol, bulten_oranlari):
         """
-        Epistemik Belirsizlik Cezalı 1.000 Deneme Dirichlet Optimizasyonu:
-        - 18 sistemin tahminlerini 1.000 farklı Dirichlet ağırlık vektörüyle birleştirir.
-        - Modeller arasındaki standart sapma (uyuşmazlık) yüksek olduğunda aşırı uç olasılıkları
-          entropi düzenlileştirmesi ile sönümleyerek sahte %90+ şişmelerini engeller.
+        Epistemik Belirsizlik Cezalı 1.000 Deneme Dirichlet Optimizasyonu.
         """
         deneme_sayisi = getattr(self.ayarlar, "optimizasyon_deneme_sayisi", 1000)
         alt_matris = np.vstack([ai_ortak, piyasa_ol, poisson_ol, mc_ol])
@@ -4507,15 +4720,12 @@ class DerinYapayZekaVeSimulasyonMotoru:
 
         referans_ol = (ai_ortak * 0.38) + (piyasa_ol * 0.24) + (poisson_ol * 0.20) + (mc_ol * 0.18)
         kl_kaybi = np.sum(referans_ol[None, :] * np.log(np.maximum(referans_ol[None, :], 1e-6) / aday_olasiliklar), axis=1)
-
-        # Aşırı özgüven (Overconfidence) cezası: tek bir sınıfın olasılığı kanıtsız şişerse cezalandır
         neg_entropi = np.sum(aday_olasiliklar * np.log(aday_olasiliklar), axis=1)
 
         toplam_maliyet = (brier_uyum_kaybi * 0.60) + (np.abs(kl_kaybi) * 0.32) + (neg_entropi * 0.04)
         en_iyi_idx = int(np.argmin(toplam_maliyet))
         ham_nihai = aday_olasiliklar[en_iyi_idx]
 
-        # Epistemik Belirsizlik Kalibrasyonu: 18 model arasında sapma yüksekse olasılığı piyasa/denge noktasına yaklaştır
         tum_ms1 = [v[0][2] for v in bireysel_sonuclar.values()] + [poisson_ol[2], mc_ol[2], piyasa_ol[2]]
         sapma_orani = float(np.std(tum_ms1))
         büzülme_katsayisi = float(np.clip(sapma_orani * 0.65, 0.0, 0.14))
@@ -4529,7 +4739,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
         secilen_oran = max(1.05, float(bulten_oranlari[fav_idx]))
         p_win = float(nihai[fav_idx])
         ham_kelly = max(0.0, ((p_win * secilen_oran - 1.0) / max(secilen_oran - 1.0, 0.05)) * 100.0)
-        # Kesirli (Fractional 0.35x) Kelly ile gerçekçi kasa yönetimi yüzdesi
         kelly = float(np.clip(ham_kelly * 0.35, 0.0, 18.5))
 
         return nihai, deneme_sayisi, en_iyi_brier, kelly
@@ -4563,7 +4772,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
             poisson_sonuc['olasiliklar'], mc_sonuc['olasiliklar'], bulten_oranlari
         )
 
-        # Yan marketlerde Dixon-Coles Poisson (%42) + 100.000 Monte Carlo (%33) + 4 Kalibreli AI (%25) dengesi
         ust_1_5_baz = poisson_sonuc['ust_1_5'] * 0.55 + mc_sonuc['ust_1_5'] * 0.45
         ust_2_5_baz = poisson_sonuc['ust_2_5'] * 0.55 + mc_sonuc['ust_2_5'] * 0.45
         ust_3_5_baz = poisson_sonuc['ust_3_5'] * 0.55 + mc_sonuc['ust_3_5'] * 0.45
@@ -4644,9 +4852,9 @@ class DerinYapayZekaVeSimulasyonMotoru:
 
     def onuc_sistem_detayli_istatistik_analizi(self, mac_verisi, tam_sonuc=None):
         """
-        3-Tık İstatistik Penceresindeki 15 Bahis Marketinin Tamamını
-        40 Kalibreli Yan Market AI Modeli + 11 Ana Modelin Tempo Projeksiyonu + Dixon-Coles Poisson +
-        100.000 Monte Carlo Simülasyonu ile gerçekçi matematiksel olasılıklarla hesaplar.
+        3-Tık İstatistik Penceresi:
+        Yanıltıcı Frikik / Penaltı / 8.5 Şut Üst / 8.5 Korner Üst tamamen kaldırılmıştır.
+        Yalnızca 15 Resmi Misli/İddaa Bahis Marketini 13 yapay zeka ve simülasyon sistemiyle tek tek hesaplar.
         """
         if "_bellek_detay_13" in mac_verisi:
             return mac_verisi["_bellek_detay_13"]
@@ -4667,10 +4875,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
         top_lambda = l_ev + l_dep
         nihai = tam_sonuc['nihai']
 
-        toplam_korner = float(p.get('ev_korner', 4.9) + p.get('dep_korner', 4.4))
-        toplam_sut = float(p.get('ev_isabetli_sut', 4.4) + p.get('dep_isabetli_sut', 3.9))
-        elo_yakinlik = max(0.0, 1.0 - abs(p['ev_elo'] - p['dep_elo']) / 350.0)
-
         def _yan_ai_dortlu_tahmin(kod, poisson_ol, mc_ol):
             p_pois_yuzde = float(poisson_ol) * 100.0
             p_mc_yuzde = float(mc_ol) * 100.0
@@ -4681,12 +4885,8 @@ class DerinYapayZekaVeSimulasyonMotoru:
                 p_dnn = float(m_dnn.predict_proba(X_scaled)[0][1]) * 100.0
                 p_lr = float(m_lr.predict_proba(X_scaled)[0][1]) * 100.0
                 return {
-                    "dnn": p_dnn,
-                    "hgb": p_hgb,
-                    "rf": p_rf,
-                    "lr": p_lr,
-                    "poisson": p_pois_yuzde,
-                    "mc": p_mc_yuzde
+                    "dnn": p_dnn, "hgb": p_hgb, "rf": p_rf, "lr": p_lr,
+                    "poisson": p_pois_yuzde, "mc": p_mc_yuzde
                 }
             ort = p_pois_yuzde * 0.52 + p_mc_yuzde * 0.48
             return {"dnn": ort, "hgb": ort, "rf": ort, "lr": ort, "poisson": p_pois_yuzde, "mc": p_mc_yuzde}
@@ -4697,53 +4897,31 @@ class DerinYapayZekaVeSimulasyonMotoru:
         u25_harita = _yan_ai_dortlu_tahmin('ust_25', pois['ust_2_5'], mc['ust_2_5'])
         a25_harita = {k: 100.0 - v for k, v in u25_harita.items()}
         u35_harita = _yan_ai_dortlu_tahmin('ust_35', pois['ust_3_5'], mc['ust_3_5'])
+        a35_harita = {k: 100.0 - v for k, v in u35_harita.items()}
 
         iy_pois = 1.0 - np.exp(-top_lambda * 0.435)
         iy_harita = _yan_ai_dortlu_tahmin('iy_05_ust', iy_pois, mc.get('iy_05_ust', iy_pois))
 
-        kor_pois = 1.0 - poisson.cdf(8, toplam_korner)
-        kor_harita = _yan_ai_dortlu_tahmin('korner_85_ust', kor_pois, mc.get('korner_85_ust', kor_pois))
-
-        sut_pois = 1.0 - poisson.cdf(8, toplam_sut)
-        sut_harita = _yan_ai_dortlu_tahmin('sut_85_ust', sut_pois, mc.get('sut_85_ust', sut_pois))
-
-        frikik_pois = 1.0 - np.exp(-(0.18 + toplam_sut * 0.052 + toplam_korner * 0.022))
-        frikik_harita = _yan_ai_dortlu_tahmin('frikik_tehlike', frikik_pois, mc.get('frikik_tehlike', frikik_pois))
-
-        pen_pois = 1.0 - np.exp(-(0.12 + top_lambda * 0.048 + toplam_korner * 0.012))
-        pen_harita = _yan_ai_dortlu_tahmin('penalti_var', pen_pois, mc.get('penalti_var', pen_pois))
-
-        kart_pois = 1.0 - poisson.cdf(3, 3.25 + elo_yakinlik * 1.25)
-        kart_harita = _yan_ai_dortlu_tahmin('kart_35_ust', kart_pois, mc.get('kart_35_ust', kart_pois))
-
         ev_15_pois = float(pois.get('ev_1_5_ust', 1.0 - poisson.cdf(1, l_ev)))
-        dep_05_pois = float(pois.get('dep_0_5_ust', 1.0 - poisson.cdf(0, l_dep)))
-        takim_gol_pois = ev_15_pois * 0.52 + dep_05_pois * 0.48
-        takim_gol_mc = float(mc.get('ev_1_5_ust', ev_15_pois) * 0.52 + mc.get('dep_0_5_ust', dep_05_pois) * 0.48)
-        takim_gol_harita = {
-            "dnn": u15_harita["dnn"] * 0.52 + u25_harita["dnn"] * 0.48,
-            "hgb": u15_harita["hgb"] * 0.52 + u25_harita["hgb"] * 0.48,
-            "rf": u15_harita["rf"] * 0.52 + u25_harita["rf"] * 0.48,
-            "lr": u15_harita["lr"] * 0.52 + u25_harita["lr"] * 0.48,
-            "poisson": takim_gol_pois * 100.0,
-            "mc": takim_gol_mc * 100.0
+        ev_15_mc = float(mc.get('ev_1_5_ust', ev_15_pois))
+        ev_15_harita = {
+            "dnn": ev_15_pois * 55.0 + ev_15_mc * 45.0,
+            "hgb": ev_15_pois * 52.0 + ev_15_mc * 48.0,
+            "rf": ev_15_pois * 54.0 + ev_15_mc * 46.0,
+            "lr": ev_15_pois * 56.0 + ev_15_mc * 44.0,
+            "poisson": ev_15_pois * 100.0,
+            "mc": ev_15_mc * 100.0
         }
 
-        cifte_1x_harita = {
-            "dnn": float(nihai[2] + nihai[1]) * 100.0,
-            "hgb": float(nihai[2] + nihai[1]) * 100.0,
-            "rf": float(nihai[2] + nihai[1]) * 100.0,
-            "lr": float(nihai[2] + nihai[1]) * 100.0,
-            "poisson": float(pois['olasiliklar'][2] + pois['olasiliklar'][1]) * 100.0,
-            "mc": float(mc['olasiliklar'][2] + mc['olasiliklar'][1]) * 100.0
-        }
-        cifte_x2_harita = {
-            "dnn": float(nihai[0] + nihai[1]) * 100.0,
-            "hgb": float(nihai[0] + nihai[1]) * 100.0,
-            "rf": float(nihai[0] + nihai[1]) * 100.0,
-            "lr": float(nihai[0] + nihai[1]) * 100.0,
-            "poisson": float(pois['olasiliklar'][0] + pois['olasiliklar'][1]) * 100.0,
-            "mc": float(mc['olasiliklar'][0] + mc['olasiliklar'][1]) * 100.0
+        dep_05_pois = float(pois.get('dep_0_5_ust', 1.0 - poisson.cdf(0, l_dep)))
+        dep_05_mc = float(mc.get('dep_0_5_ust', dep_05_pois))
+        dep_05_harita = {
+            "dnn": dep_05_pois * 55.0 + dep_05_mc * 45.0,
+            "hgb": dep_05_pois * 52.0 + dep_05_mc * 48.0,
+            "rf": dep_05_pois * 54.0 + dep_05_mc * 46.0,
+            "lr": dep_05_pois * 56.0 + dep_05_mc * 44.0,
+            "poisson": dep_05_pois * 100.0,
+            "mc": dep_05_mc * 100.0
         }
 
         bireysel_items = list(tam_sonuc['bireysel_ai'].items())
@@ -4753,22 +4931,24 @@ class DerinYapayZekaVeSimulasyonMotoru:
         secili_13_sistem.append(("📐 Dixon-Coles Bivariate Poisson Sistemi", pois['olasiliklar'], 0.14))
         secili_13_sistem.append(("🎲 100.000 İterasyonlu Monte Carlo Motoru", mc['olasiliklar'], 0.14))
 
+        # 15 Resmi Misli / İddaa Bahis Marketi (Sahte Frikik/Korner/Şut/Penaltı Yok!)
         tanimli_istatistikler = [
-            ("Karşılıklı Gol: KG VAR", kg_harita, "gol_cift"),
-            ("Karşılıklı Gol: KG YOK", kg_yok_harita, "savunma"),
+            (f"Maç Sonucu: MS 1 ({ev} Kazanır)", None, "ms1_taraf"),
+            ("Maç Sonucu: MS X (Beraberlik)", None, "msx_taraf"),
+            (f"Maç Sonucu: MS 2 ({dep} Kazanır)", None, "ms2_taraf"),
+            ("Çifte Şans: 1X (Ev Sahibi Yenilmez)", None, "ev_taraf"),
+            ("Çifte Şans: X2 (Deplasman Yenilmez)", None, "dep_taraf"),
+            ("Çifte Şans: 12 (Maç Berabere Bitmez)", None, "12_taraf"),
             ("Toplam Gol: 1.5 GOL ÜST", u15_harita, "hucum"),
             ("Toplam Gol: 2.5 GOL ÜST", u25_harita, "hucum"),
             ("Toplam Gol: 2.5 GOL ALT", a25_harita, "savunma"),
             ("Toplam Gol: 3.5 GOL ÜST", u35_harita, "hucum"),
-            ("Frikik / Duran Top Baraj Üstü Şut & Gol Tehlikesi", frikik_harita, "ozel_frikik"),
+            ("Toplam Gol: 3.5 GOL ALT", a35_harita, "savunma"),
+            ("Karşılıklı Gol: KG VAR", kg_harita, "gol_cift"),
+            ("Karşılıklı Gol: KG YOK", kg_yok_harita, "savunma"),
             ("İlk Yarı: 0.5 GOL ÜST (İY Gol Olur)", iy_harita, "hucum"),
-            ("Toplam Korner: 8.5 KORNER ÜST", kor_harita, "baski"),
-            ("Toplam İsabetli Şut: 8.5 ŞUT ÜST", sut_harita, "baski"),
-            ("Maçta Penaltı / VAR Ceza Sahası Kararı", pen_harita, "ozel_penalti"),
-            ("Disiplin / Sertlik: 3.5 KART ÜST", kart_harita, "sertlik"),
-            (f"Takım Gol Barajı: {ev} 1.5 ÜST / {dep} 0.5 ÜST", takim_gol_harita, "hucum"),
-            ("Çifte Şans: 1X (Ev Sahibi Yenilmez)", cifte_1x_harita, "ev_taraf"),
-            ("Çifte Şans: X2 (Deplasman Yenilmez)", cifte_x2_harita, "dep_taraf")
+            (f"Ev Sahibi Takım Gol: {ev} 1.5 GOL ÜST", ev_15_harita, "hucum"),
+            (f"Deplasman Takım Gol: {dep} 0.5 GOL ÜST (Dep Gol Atar)", dep_05_harita, "hucum")
         ]
 
         market_sonuclari = []
@@ -4778,10 +4958,18 @@ class DerinYapayZekaVeSimulasyonMotoru:
             toplam_ag = 0.0
 
             for s_isim, s_ol, s_ag in secili_13_sistem:
-                if tip == "ev_taraf":
+                if tip == "ms1_taraf":
+                    hesaplanan_yuzde = float(s_ol[2]) * 100.0
+                elif tip == "msx_taraf":
+                    hesaplanan_yuzde = float(s_ol[1]) * 100.0
+                elif tip == "ms2_taraf":
+                    hesaplanan_yuzde = float(s_ol[0]) * 100.0
+                elif tip == "ev_taraf":
                     hesaplanan_yuzde = float(s_ol[2] + s_ol[1]) * 100.0
                 elif tip == "dep_taraf":
                     hesaplanan_yuzde = float(s_ol[0] + s_ol[1]) * 100.0
+                elif tip == "12_taraf":
+                    hesaplanan_yuzde = float(s_ol[2] + s_ol[0]) * 100.0
                 elif "Poisson" in s_isim:
                     hesaplanan_yuzde = float(harita["poisson"])
                 elif "Monte Carlo" in s_isim:
@@ -4796,20 +4984,18 @@ class DerinYapayZekaVeSimulasyonMotoru:
                     else:
                         model_baz = harita["lr"] * 0.50 + harita["poisson"] * 0.28 + harita["mc"] * 0.22
 
-                    model_x_fark = (float(s_ol[1]) - float(nihai[1])) * 18.0
-                    model_aciklik = ((1.0 - float(s_ol[1])) - (1.0 - float(nihai[1]))) * 16.0
-                    model_denge = (0.35 - abs(float(s_ol[2]) - float(s_ol[0]))) * 9.0
+                    model_x_fark = (float(s_ol[1]) - float(nihai[1])) * 16.0
+                    model_aciklik = ((1.0 - float(s_ol[1])) - (1.0 - float(nihai[1]))) * 14.0
+                    model_denge = (0.35 - abs(float(s_ol[2]) - float(s_ol[0]))) * 8.0
 
                     if tip == "savunma":
-                        etki = (model_x_fark * 0.75) - (model_aciklik * 0.35)
+                        etki = (model_x_fark * 0.70) - (model_aciklik * 0.35)
                     elif tip == "gol_cift":
-                        etki = (model_denge * 0.55) - (model_x_fark * 0.40)
-                    elif tip == "sertlik":
-                        etki = (model_x_fark * 0.50) + (model_denge * 0.45)
+                        etki = (model_denge * 0.50) - (model_x_fark * 0.35)
                     else:
-                        etki = (model_aciklik * 0.55) - (model_x_fark * 0.35)
+                        etki = (model_aciklik * 0.50) - (model_x_fark * 0.30)
 
-                    hesaplanan_yuzde = float(np.clip(model_baz + etki, 2.0, 96.5))
+                    hesaplanan_yuzde = float(np.clip(model_baz + etki, 2.5, 95.5))
 
                 sistem_listesi.append({
                     "sistem": s_isim,
@@ -4845,15 +5031,13 @@ class DerinYapayZekaVeSimulasyonMotoru:
     @staticmethod
     def _piyasa_referans_orani_hesapla(market_adi: str, kat: str, m: dict, ai_ihtimal: float) -> float:
         """
-        Yan marketlerin (Alt/Üst, KG, Çifte Şans, Korner, Şut) piyasa oranını
-        ai_ihtimal'den bağımsız olarak bültenin 1X2 oranlarındaki zımni gol ve güç beklentisinden türetir.
-        Böylece yapay zeka ile piyasa arasındaki GERÇEK Değer (Value / EV) farkı yakalanır.
+        Resmi yan marketlerin (Alt/Üst, KG, Çifte Şans, İlk Yarı, Takım Gol) piyasa oranını
+        bültenin 1X2 oranlarındaki zımni gol ve güç beklentisinden türetir.
         """
         p = m['parametreler']
         p1, px, p2 = float(p['piyasa_p1']), float(p['piyasa_px']), float(p['piyasa_p2'])
         marj = 1.058
 
-        # Piyasanın beraberlik olasılığından (px) beklediği toplam gol ortamı
         piyasa_toplam_gol = float(np.clip(2.68 - (px - 0.265) * 6.2 + abs(p1 - p2) * 0.35, 1.95, 3.35))
         piyasa_ev_gol = piyasa_toplam_gol * float(np.clip(0.52 + (p1 - p2) * 0.38, 0.25, 0.78))
         piyasa_dep_gol = max(0.35, piyasa_toplam_gol - piyasa_ev_gol)
@@ -4861,9 +5045,11 @@ class DerinYapayZekaVeSimulasyonMotoru:
         if kat == "CIFTE_SANS":
             if "1X" in market_adi:
                 p_mkt = np.clip(p1 + px, 0.20, 0.92)
-            else:
+            elif "X2" in market_adi:
                 p_mkt = np.clip(p2 + px, 0.18, 0.90)
-        elif "1.5 GOL ÜST" in market_adi:
+            else:
+                p_mkt = np.clip(p1 + p2, 0.55, 0.88)
+        elif "1.5 GOL ÜST" in market_adi and "Ev Sahibi" not in market_adi:
             p_mkt = 1.0 - poisson.cdf(1, piyasa_toplam_gol)
         elif "2.5 GOL ÜST" in market_adi:
             p_mkt = 1.0 - poisson.cdf(2, piyasa_toplam_gol)
@@ -4871,68 +5057,61 @@ class DerinYapayZekaVeSimulasyonMotoru:
             p_mkt = poisson.cdf(2, piyasa_toplam_gol)
         elif "3.5 GOL ÜST" in market_adi:
             p_mkt = 1.0 - poisson.cdf(3, piyasa_toplam_gol)
+        elif "3.5 GOL ALT" in market_adi:
+            p_mkt = poisson.cdf(3, piyasa_toplam_gol)
         elif "KG VAR" in market_adi:
             p_mkt = (1.0 - np.exp(-piyasa_ev_gol)) * (1.0 - np.exp(-piyasa_dep_gol))
         elif "KG YOK" in market_adi:
             p_mkt = 1.0 - ((1.0 - np.exp(-piyasa_ev_gol)) * (1.0 - np.exp(-piyasa_dep_gol)))
         elif kat == "ILK_YARI":
             p_mkt = 1.0 - np.exp(-piyasa_toplam_gol * 0.435)
-        elif kat == "KORNER":
-            p_mkt = 1.0 - poisson.cdf(8, 9.2 + (piyasa_toplam_gol - 2.65) * 1.4)
-        elif kat == "SUT":
-            p_mkt = 1.0 - poisson.cdf(8, 8.3 + (piyasa_toplam_gol - 2.65) * 1.5)
-        elif kat == "KART":
-            p_mkt = 1.0 - poisson.cdf(3, 3.45 - abs(p1 - p2) * 0.65)
-        elif kat == "TAKIM_GOL":
-            p_mkt = ((1.0 - poisson.cdf(1, piyasa_ev_gol)) * 0.52) + ((1.0 - np.exp(-piyasa_dep_gol)) * 0.48)
+        elif "Ev Sahibi Takım Gol" in market_adi:
+            p_mkt = 1.0 - poisson.cdf(1, piyasa_ev_gol)
+        elif "Deplasman Takım Gol" in market_adi:
+            p_mkt = 1.0 - np.exp(-piyasa_dep_gol)
         else:
-            # Frikik / Penaltı gibi özel marketler için hibrit piyasa referansı
-            p_mkt = np.clip((ai_ihtimal / 100.0) * 0.85 + 0.04, 0.12, 0.85)
+            p_mkt = np.clip((ai_ihtimal / 100.0) * 0.90, 0.14, 0.86)
 
         ham_oran = 1.0 / max(float(p_mkt) * marj, 0.08)
-        # Bülten gerçekçiliği için AI adil oranıyla piyasa oranını yumuşakça harmanla
         adil_oran = 100.0 / max(ai_ihtimal, 5.0)
         gercekci_oran = (ham_oran * 0.65) + (adil_oran * 0.94 * 0.35)
-        return round(float(np.clip(gercekci_oran, 1.14, 6.50)), 2)
+        return round(float(np.clip(gercekci_oran, 1.14, 5.80)), 2)
 
-    def akilli_kupon_olustur(self, mac_listesi, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=7):
+    def akilli_kupon_olustur(self, mac_listesi, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=1):
         """
-        5 Boyutlu Yeni Nesil Akıllı Kupon Motoru (Kesin Tarih/Gün Sınırlı):
-        - Seçilen gün sınırı (1..7 gün) dışındaki hiçbir maçı (örn. 1 gün seçildiğinde 3-5 gün sonraki maçları)
-          kesinlikle havuza dahil etmez.
-        - Seçilen gün(ler) içinde oynanacak tüm maçları 18+10 yapay zeka modeliyle tarayıp en yüksek kazanma
-          olasılıklı maçları seçer.
+        5 Boyutlu Yeni Nesil Akıllı Kupon Motoru (Türkiye Saatine Göre 1-7 Gün Kesin Filtreli):
+        - Seçilen gün sınırı (1..7 gün) Türkiye takvim gününe (_turkiye_gun_farki_hesapla) göre kesin olarak filtrelenir.
+          1 Gün seçildiğinde SADECE 1. günün (bugünün) en yüksek ihtimalli maçları seçilir.
+          2..7 Gün seçildiğinde 1. günden seçilen güne kadar olan maçlar arasından en yüksek ihtimalliler seçilir.
+        - Yanıltıcı 8.5 Şut Üst, 8.5 Korner Üst, Frikik ve Penaltı marketleri kupona kesinlikle dahil edilmez;
+          yalnızca resmi Misli/İddaa marketleri değerlendirilir.
         """
         simdi_utc = _utc_simdi_ts()
-        simdi_tr = _turkiye_saati_simdi()
         gun_siniri_int = max(1, min(7, int(gun_siniri)))
+        hedef_adet = max(2, min(6, int(mac_sayisi)))
 
-        # Türkiye saatiyle seçilen günün son takvim tarihi ve saat sınırı:
-        # 1 Gün seçildiğinde: Bugünün maçları + önümüzdeki 24 saat içindeki maçlar (Asla 2-5 gün sonrası girmez!)
-        # 2..7 Gün seçildiğinde: Tam olarak o takvim günleri arasındaki maçlar
-        son_takvim_gunu = (simdi_tr + datetime.timedelta(days=gun_siniri_int - 1)).date()
-        maks_saat_saniye = simdi_utc + (gun_siniri_int * 86400)
-
+        # Türkiye saatine göre her maçın gün numarasını (1..7) kesin olarak güncelle ve filtrele
         aday_maclar = []
+        tum_gelecek = []
         for m in mac_listesi:
             u_zaman = int(m.get('unix_zamani', 0))
             if u_zaman <= simdi_utc:
                 continue
-            mac_tr_dt = datetime.datetime.fromtimestamp(u_zaman, datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=3)
-            if mac_tr_dt.date() <= son_takvim_gunu or u_zaman <= maks_saat_saniye:
+            g_farki = _turkiye_gun_farki_hesapla(u_zaman)
+            m['gun_farki'] = g_farki
+            tum_gelecek.append(m)
+            if 1 <= g_farki <= gun_siniri_int:
                 aday_maclar.append(m)
 
-        # Eğer seçilen günde (örneğin gece yarısı) maç sayısı istenen kupon adedinden azsa,
-        # ASLA 3-5 gün sonraki maçlara atlama! Sadece kronolojik olarak en yakın saatli maçı ekle:
-        if len(aday_maclar) < int(mac_sayisi):
+        # Gece geç saatte 1. günde (bugün) kalan maç sayısı kupon adedinden azsa yalnızca ertesi günün ilk maçlarıyla tamamla
+        if len(aday_maclar) < hedef_adet:
             kalan_sirali = sorted(
-                [m for m in mac_listesi if int(m.get('unix_zamani', 0)) > simdi_utc and m not in aday_maclar],
+                [m for m in tum_gelecek if m not in aday_maclar and int(m.get('gun_farki', 99)) <= gun_siniri_int + 1],
                 key=lambda x: int(x.get('unix_zamani', 0))
             )
             for ek_m in kalan_sirali:
-                if int(ek_m.get('unix_zamani', 0)) <= maks_saat_saniye + 43200:  # En fazla +12 saat (ertesi gün öğlen)
-                    aday_maclar.append(ek_m)
-                if len(aday_maclar) >= int(mac_sayisi):
+                aday_maclar.append(ek_m)
+                if len(aday_maclar) >= hedef_adet:
                     break
 
         mac_degerlendirmeleri = []
@@ -4946,7 +5125,6 @@ class DerinYapayZekaVeSimulasyonMotoru:
             guven = float(sonuc['guven_skoru'])
             brier = float(sonuc.get('opt_brier', 0.16))
 
-            # 4 Senaryo stres testi dayanıklılığı (MS1, MSX, MS2 için en kötü senaryodaki taban ihtimal)
             sen_degerler = list(sonuc['monte_carlo']['senaryolar'].values())
             min_sen_ms1 = min(v[0] for v in sen_degerler) if sen_degerler else p1
             min_sen_msx = min(v[1] for v in sen_degerler) if sen_degerler else px
@@ -4984,23 +5162,23 @@ class DerinYapayZekaVeSimulasyonMotoru:
             ]
 
             for mk in detay_13["marketler"]:
-                iht = float(mk["ortalama"])
                 m_adi = mk["market"]
+                if m_adi.startswith("Maç Sonucu:"):
+                    continue
+                if any(yasak in m_adi for yasak in ("KORNER", "ŞUT", "Frikik", "Penaltı", "KART")):
+                    continue
+
+                iht = float(mk["ortalama"])
                 alt_yuzdeler = [float(s["yuzde"]) for s in mk.get("sistemler", [])]
                 mk_sapma = float(np.std(alt_yuzdeler)) if alt_yuzdeler else sapma
                 taban_q25 = float(np.percentile(alt_yuzdeler, 25)) if alt_yuzdeler else (iht - mk_sapma)
 
                 kat = "GENEL"
-                if "1.5 GOL ÜST" in m_adi: kat = "GOL_15"
+                if "1.5 GOL ÜST" in m_adi and "Ev Sahibi" not in m_adi: kat = "GOL_15"
                 elif "2.5 GOL ÜST" in m_adi or "2.5 GOL ALT" in m_adi: kat = "GOL_25"
-                elif "3.5 GOL ÜST" in m_adi: kat = "GOL_35"
+                elif "3.5 GOL ÜST" in m_adi or "3.5 GOL ALT" in m_adi: kat = "GOL_35"
                 elif "KG VAR" in m_adi or "KG YOK" in m_adi: kat = "KG"
                 elif "İlk Yarı" in m_adi: kat = "ILK_YARI"
-                elif "KORNER" in m_adi: kat = "KORNER"
-                elif "ŞUT" in m_adi: kat = "SUT"
-                elif "KART" in m_adi: kat = "KART"
-                elif "Frikik" in m_adi: kat = "FRIKIK"
-                elif "Penaltı" in m_adi: kat = "PENALTI"
                 elif "Takım Gol" in m_adi: kat = "TAKIM_GOL"
                 elif "Çifte Şans" in m_adi: kat = "CIFTE_SANS"
 
@@ -5023,66 +5201,62 @@ class DerinYapayZekaVeSimulasyonMotoru:
                 kat = mk["kat"]
                 mk_sapma = mk["alt_sapma"]
 
-                # Gerçek Beklenen Değer (Expected Value) ve Kesirli Kelly Hesabı
                 ev_degeri = (iht / 100.0) * oran
                 kelly_edge = max(0.0, ((iht / 100.0) * oran - 1.0) / max(oran - 1.0, 0.05))
                 kalibrasyon_bonusu = max(0.0, (0.22 - brier) * 55.0)
                 vitrin_bonusu = 4.0 if m.get("vitrin_mi", False) else 0.0
 
                 if risk_seviyesi == "DUSUK":
-                    # DÜŞÜK RİSK: En yüksek kazanma olasılığı + En yüksek 25. yüzdelik taban + En düşük sapma
-                    if iht >= 64.0 and 1.18 <= oran <= 1.75:
+                    if iht >= 64.0 and 1.16 <= oran <= 1.78:
                         puan = (
-                            (iht * 0.85) +
+                            (iht * 0.90) +
                             (taban_iht * 0.65) +
                             (guven * 0.35) +
-                            (ev_degeri * 18.0) +
+                            (ev_degeri * 16.0) +
                             kalibrasyon_bonusu +
                             vitrin_bonusu -
-                            (mk_sapma * 2.4)
+                            (mk_sapma * 2.2)
                         )
-                        if kat in ("CIFTE_SANS", "GOL_15", "ILK_YARI", "TAKIM_GOL"):
+                        if kat in ("CIFTE_SANS", "GOL_15", "ILK_YARI", "TAKIM_GOL", "TARAF"):
                             puan += 5.0
-                        neden = f"18+10 AI Banko Mutabakatı (Taban: %{taban_iht:.1f} | Sapma: ±%{mk_sapma:.1f} | Güven: %{guven:.1f})"
+                        neden = f"18+10 AI En Yüksek Banko Mutabakatı (AI: %{iht:.1f} | Taban: %{taban_iht:.1f} | Güven: %{guven:.1f})"
                     else:
-                        puan = (iht * 0.55) + (taban_iht * 0.35) - (mk_sapma * 2.2) - abs(oran - 1.45) * 12.0
-                        neden = f"Yüksek Kalibreli AI Başarı İhtimali (%{iht:.1f} | Taban: %{taban_iht:.1f})"
+                        puan = (iht * 0.60) + (taban_iht * 0.35) - (mk_sapma * 2.0) - abs(oran - 1.42) * 12.0
+                        neden = f"Yüksek Kalibreli Banko İhtimal (%{iht:.1f} | Taban: %{taban_iht:.1f})"
 
                 elif risk_seviyesi == "ORTA":
-                    # ORTA RİSK: Yüksek kazanma olasılığı (%52-%72) + Pozitif Value (EV > 1.0) + Kelly Dengesi
-                    if 1.42 <= oran <= 2.35 and iht >= 51.0:
+                    if 1.40 <= oran <= 2.35 and iht >= 51.0:
                         puan = (
-                            (iht * 0.72) +
+                            (iht * 0.78) +
                             (taban_iht * 0.42) +
-                            (ev_degeri * 42.0) +
-                            (kelly_edge * 32.0) +
+                            (ev_degeri * 40.0) +
+                            (kelly_edge * 30.0) +
                             (guven * 0.28) +
                             kalibrasyon_bonusu +
                             vitrin_bonusu -
-                            (mk_sapma * 1.65)
+                            (mk_sapma * 1.6)
                         )
-                        if kat in ("GOL_25", "KG", "TARAF", "KORNER", "SUT", "TAKIM_GOL"):
+                        if kat in ("GOL_25", "KG", "TARAF", "TAKIM_GOL", "ILK_YARI"):
                             puan += 5.5
-                        neden = f"Optimum Value & 18 AI Konsensüsü (EV: {ev_degeri:.2f} | Taban: %{taban_iht:.1f} | Sapma: ±%{mk_sapma:.1f})"
+                        neden = f"Resmi Market Optimum Value & 18 AI Konsensüsü (AI: %{iht:.1f} | EV: {ev_degeri:.2f} | Taban: %{taban_iht:.1f})"
                     else:
-                        puan = (iht * 0.45) + (ev_degeri * 18.0) - (mk_sapma * 1.8)
-                        neden = f"Dengeli Oran & Konsensüs Seçimi (EV: {ev_degeri:.2f} | Güven: %{guven:.1f})"
+                        puan = (iht * 0.50) + (ev_degeri * 18.0) - (mk_sapma * 1.6)
+                        neden = f"Dengeli Oran & Konsensüs Seçimi (AI: %{iht:.1f} | EV: {ev_degeri:.2f})"
 
                 else:
-                    # YÜKSEK RİSK: Yüksek Oran (1.85 - 4.80) + Güçlü Pozitif Value (EV) + Senaryo Sürpriz Potansiyeli
                     if 1.85 <= oran <= 4.85 and iht >= 29.0:
                         puan = (
-                            (ev_degeri * 56.0) +
-                            (kelly_edge * 40.0) +
-                            (iht * 0.52) +
+                            (ev_degeri * 54.0) +
+                            (kelly_edge * 38.0) +
+                            (iht * 0.55) +
                             (taban_iht * 0.30) +
-                            (oran * 7.5) +
+                            (oran * 7.0) +
                             (guven * 0.20) +
                             vitrin_bonusu -
                             (mk_sapma * 1.1)
                         )
-                        if kat in ("GOL_35", "TARAF", "TARAF_SURPRIZ", "KG", "KORNER", "SUT"):
-                            puan += 6.5
+                        if kat in ("GOL_35", "TARAF", "TARAF_SURPRIZ", "KG", "GOL_25"):
+                            puan += 6.0
                         neden = f"Yüksek Value & Kelly Fırsatı (Oran: {oran:.2f} | EV: {ev_degeri:.2f} | AI: %{iht:.1f})"
                     else:
                         puan = (ev_degeri * 22.0) + (iht * 0.35)
@@ -5101,16 +5275,14 @@ class DerinYapayZekaVeSimulasyonMotoru:
             mac_degerlendirmeleri.append({
                 "mac": m,
                 "en_iyi_puan": puanli_adaylar[0]["puan"],
-                "aday_marketler": puanli_adaylar[:6],
+                "aday_marketler": puanli_adaylar[:5],
                 "guven": round(guven, 1)
             })
 
-        # Maçları en yüksek akıllı kupon skoruna göre sırala, aynı ligden aşırı yığılmayı önle
         mac_degerlendirmeleri.sort(key=lambda x: x["en_iyi_puan"], reverse=True)
 
         secilen_mac_paketleri = []
         lig_sayaci = {}
-        hedef_adet = int(mac_sayisi)
 
         for paket in mac_degerlendirmeleri:
             if len(secilen_mac_paketleri) >= hedef_adet:
@@ -5135,7 +5307,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
             secilen_mk = adaylar[0]
             for mk in adaylar:
                 kullanim = kategori_sayaci.get(mk["kat"], 0)
-                if kullanim == 0 and mk["puan"] >= adaylar[0]["puan"] - 5.0:
+                if kullanim == 0 and mk["puan"] >= adaylar[0]["puan"] - 4.5:
                     secilen_mk = mk
                     break
             kategori_sayaci[secilen_mk["kat"]] = kategori_sayaci.get(secilen_mk["kat"], 0) + 1
@@ -5164,7 +5336,7 @@ class DerinYapayZekaVeSimulasyonMotoru:
         return {
             "risk_seviyesi": risk_seviyesi,
             "mac_sayisi": len(secilen_maclar),
-            "gun_siniri": gun_siniri,
+            "gun_siniri": gun_siniri_int,
             "toplam_oran": round(toplam_oran, 2),
             "ortalama_ihtimal": round(ortalama_ihtimal, 1),
             "birlesik_olasilik": round(birlesik_olasilik * 100.0, 1),
@@ -5208,8 +5380,8 @@ class OmegaTahminArayuzu:
     @staticmethod
     def _gecici_dosyalari_temizle():
         """Başlangıçta ve kapanışta tüm geçici/parçalı JSON dosyalarını sıfırlar ve temizler."""
-        SabitSilinecekler = ("omega_ai_bellek.pkl", "omega_canli_veri.json", "omega_canli_meta.json", "omega_canli_ozet.json")
-        for dosya in SabitSilinecekler:
+        sabit_silinecekler = ("omega_ai_bellek.pkl", "omega_canli_veri.json", "omega_canli_meta.json", "omega_canli_ozet.json")
+        for dosya in sabit_silinecekler:
             if os.path.exists(dosya):
                 try:
                     os.remove(dosya)
@@ -5244,7 +5416,7 @@ class OmegaTahminArayuzu:
 
         tk.Label(
             self.secim_frame,
-            text="Misli / İddaa Gerçek Gelecek Maçlar & Takım Geçmişleri Dinamik Çekilir\n18 Ana Sistem + 10 Yan Market Gerçekçi Kalibreli AI + 1.000 Deneme Optimizasyonu İle Hesaplanır:",
+            text="Misli / İddaa Gerçek Gelecek Maçlar & Takım Geçmişleri Dinamik Çekilir\n18 Ana Sistem + Resmi Misli/İddaa Market Modelleri + 1.000 Deneme Optimizasyonu İle Hesaplanır:",
             bg="#0f172a", fg="#94a3b8", font=("Helvetica", 11), justify="center"
         ).pack(pady=(0, 18))
 
@@ -5264,7 +5436,7 @@ class OmegaTahminArayuzu:
 
         tk.Label(
             self.mac_kart,
-            text="• Apple Accelerate & VecLib 8-Çekirdek\n• 18+10 Kalibreli AI + 1.000 Deneme + 100.000 Monte Carlo\n• Sıkıştırılmış Parçalı JSON Bulut Kurulumu",
+            text="• Apple Accelerate & VecLib 8-Çekirdek\n• 18+10 Kalibreli AI + 1.000 Deneme + 100.000 Monte Carlo\n• 1-7 Gün Kesin Filtreli Resmi Market Kupon Motoru",
             bg="#1e293b", fg="#cbd5e1", font=("Helvetica", 10), justify="left"
         ).pack(anchor="w", pady=(8, 0))
 
@@ -5281,7 +5453,7 @@ class OmegaTahminArayuzu:
 
         tk.Label(
             self.win_kart,
-            text="• Loky Çoklu Çekirdek (n_jobs=-1)\n• 18+10 Kalibreli AI + 1.000 Deneme + 100.000 Monte Carlo\n• Sıkıştırılmış Parçalı JSON Bulut Kurulumu",
+            text="• Loky Çoklu Çekirdek (n_jobs=-1)\n• 18+10 Kalibreli AI + 1.000 Deneme + 100.000 Monte Carlo\n• 1-7 Gün Kesin Filtreli Resmi Market Kupon Motoru",
             bg="#1e293b", fg="#cbd5e1", font=("Helvetica", 10), justify="left"
         ).pack(anchor="w", pady=(8, 0))
 
@@ -5500,16 +5672,33 @@ class OmegaTahminArayuzu:
         ana_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # ==================== SOL PANEL ====================
-        sol_frame = tk.Frame(ana_paned, bg="#1e293b", width=510)
-        ana_paned.add(sol_frame, minsize=480)
+        sol_frame = tk.Frame(ana_paned, bg="#1e293b", width=520)
+        ana_paned.add(sol_frame, minsize=490)
 
         filtre_frame = tk.Frame(sol_frame, bg="#1e293b")
         filtre_frame.pack(fill=tk.X, padx=10, pady=(8, 4))
-        tk.Label(filtre_frame, text="🇹🇷 Lig Filtresi:", bg="#1e293b", fg="#fbbf24", font=(f_ana, 9, "bold")).pack(side=tk.LEFT)
+        tk.Label(filtre_frame, text="🇹🇷 Lig:", bg="#1e293b", fg="#fbbf24", font=(f_ana, 9, "bold")).pack(side=tk.LEFT)
 
-        self.lig_combo = ttk.Combobox(filtre_frame, state="readonly", font=(f_ana, 9))
-        self.lig_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
+        self.lig_combo = ttk.Combobox(filtre_frame, state="readonly", width=24, font=(f_ana, 9))
+        self.lig_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         self.lig_combo.bind("<<ComboboxSelected>>", self._lig_filtrele)
+
+        tk.Label(filtre_frame, text="📅 Gün:", bg="#1e293b", fg="#38bdf8", font=(f_ana, 9, "bold")).pack(side=tk.LEFT, padx=(4, 2))
+        self.bulten_gun_combo = ttk.Combobox(
+            filtre_frame, state="readonly", width=16, font=(f_ana, 9),
+            values=[
+                "1-7 Gün (Tümü)",
+                "Sadece 1. Gün",
+                "1 - 2. Gün",
+                "1 - 3. Gün",
+                "1 - 4. Gün",
+                "1 - 5. Gün",
+                "1 - 6. Gün"
+            ]
+        )
+        self.bulten_gun_combo.current(0)
+        self.bulten_gun_combo.pack(side=tk.LEFT)
+        self.bulten_gun_combo.bind("<<ComboboxSelected>>", self._lig_filtrele)
 
         arama_frame = tk.Frame(sol_frame, bg="#1e293b")
         arama_frame.pack(fill=tk.X, padx=10, pady=(0, 4))
@@ -5528,14 +5717,14 @@ class OmegaTahminArayuzu:
 
         sutunlar = ("tarih", "lig", "mac", "oran1", "oranx", "oran2")
         self.mac_tablosu = ttk.Treeview(sol_frame, columns=sutunlar, show="headings", height=13)
-        self.mac_tablosu.heading("tarih", text="Tarih/Saat")
+        self.mac_tablosu.heading("tarih", text="Tarih/Saat (Gün)")
         self.mac_tablosu.heading("lig", text="Lig")
         self.mac_tablosu.heading("mac", text="Karşılaşma")
         self.mac_tablosu.heading("oran1", text="MS1")
         self.mac_tablosu.heading("oranx", text="MSX")
         self.mac_tablosu.heading("oran2", text="MS2")
-        self.mac_tablosu.column("tarih", width=78, anchor="center")
-        self.mac_tablosu.column("lig", width=118)
+        self.mac_tablosu.column("tarih", width=95, anchor="center")
+        self.mac_tablosu.column("lig", width=115)
         self.mac_tablosu.column("mac", width=165)
         self.mac_tablosu.column("oran1", width=42, anchor="center")
         self.mac_tablosu.column("oranx", width=42, anchor="center")
@@ -5550,7 +5739,7 @@ class OmegaTahminArayuzu:
         detay_alt_btn.pack(fill=tk.X, padx=10, pady=(3, 5))
         detay_alt_lbl = tk.Label(
             detay_alt_btn,
-            text="🔥 SEÇİLİ MAÇIN 13 SİSTEMLİ TÜM İSTATİSTİKLERİNİ AÇ (3-Tık Penceresi)",
+            text="🔥 SEÇİLİ MAÇIN 13 SİSTEMLİ RESMİ MARKETLERİNİ AÇ (3-Tık Penceresi)",
             bg="#16a34a", fg="#ffffff", font=(f_ana, 9, "bold"), pady=6, cursor="hand2"
         )
         detay_alt_lbl.pack(fill=tk.X)
@@ -5577,14 +5766,14 @@ class OmegaTahminArayuzu:
         ).grid(row=0, column=2, rowspan=2, padx=6, pady=4, sticky="ns")
 
         kupon_frame = tk.LabelFrame(
-            sol_frame, text=" 🤖 Yapay Zeka Akıllı Kupon Oluşturucu (18+10 Kalibreli AI & 1.000 Deneme) ",
+            sol_frame, text=" 🤖 Yapay Zeka Akıllı Kupon Oluşturucu (1-7 Gün Kesin Filtreli Resmi Marketler) ",
             bg="#191636", fg="#e879f9", font=(f_ana, 9, "bold")
         )
         kupon_frame.pack(fill=tk.X, padx=10, pady=(4, 8))
 
         tk.Label(kupon_frame, text="Risk Seviyesi:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=0, column=0, padx=5, pady=3, sticky="w")
         self.kupon_risk_combo = ttk.Combobox(
-            kupon_frame, state="readonly", width=22, font=(f_ana, 9),
+            kupon_frame, state="readonly", width=26, font=(f_ana, 9),
             values=[
                 "🛡️ Düşük Risk (En Garanti Banko Marketler)",
                 "⚖️ Orta Risk (İdeal Oran & Çeşitli Market)",
@@ -5596,13 +5785,12 @@ class OmegaTahminArayuzu:
 
         tk.Label(kupon_frame, text="Maç Sayısı:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=1, column=0, padx=5, pady=3, sticky="w")
         self.kupon_adet_combo = ttk.Combobox(
-            kupon_frame, state="readonly", width=22, font=(f_ana, 9),
+            kupon_frame, state="readonly", width=26, font=(f_ana, 9),
             values=["2 Maçlık Kupon", "3 Maçlık Kupon", "4 Maçlık Kupon", "5 Maçlık Kupon", "6 Maçlık Kupon"]
         )
         self.kupon_adet_combo.current(1)
         self.kupon_adet_combo.grid(row=1, column=1, padx=5, pady=3)
 
-        tk.Label(kupon_frame, text="Zaman Aralığı:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=2, column=0, padx=5, pady=3, sticky="w")
         tk.Label(kupon_frame, text="Zaman Aralığı:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=2, column=0, padx=5, pady=3, sticky="w")
         simdi_tr_dt = _turkiye_saati_simdi()
         bugun_kisa = simdi_tr_dt.strftime("%d.%m")
@@ -5610,7 +5798,7 @@ class OmegaTahminArayuzu:
         for g in range(1, 8):
             bitis_kisa = (simdi_tr_dt + datetime.timedelta(days=g - 1)).strftime("%d.%m")
             if g == 1:
-                gun_degerleri.append(f"📅 1 Gün ({bugun_kisa} Bugün / 24 Saat)")
+                gun_degerleri.append(f"📅 1 Gün ({bugun_kisa} Bugün)")
             else:
                 gun_degerleri.append(f"📅 {g} Gün ({bugun_kisa} - {bitis_kisa} Arası)")
 
@@ -5618,9 +5806,7 @@ class OmegaTahminArayuzu:
             kupon_frame, state="readonly", width=26, font=(f_ana, 9),
             values=gun_degerleri
         )
-        self.kupon_gun_combo.current(0)
-        self.kupon_gun_combo.grid(row=2, column=1, padx=5, pady=3)
-        self.kupon_gun_combo.current(2)
+        self.kupon_gun_combo.current(0)  # Varsayılan olarak 1. Gün (Bugünün en iyi maçları)
         self.kupon_gun_combo.grid(row=2, column=1, padx=5, pady=3)
 
         ttk.Button(
@@ -5642,7 +5828,7 @@ class OmegaTahminArayuzu:
         self.mac_baslik_lbl.pack(anchor="w", padx=15, pady=(10, 3))
 
         self.konsensus_ozet_lbl = tk.Label(
-            self.karar_frame, text="18 ana sistem, 10 yan market kalibreli yapay zekası ve 1.000 denemeli optimizasyon motoru hazır.",
+            self.karar_frame, text="18 ana sistem, resmi Misli/İddaa market modelleri ve 1.000 denemeli optimizasyon motoru hazır.",
             bg="#1e293b", fg="#38bdf8", font=(f_ana, 11, "bold")
         )
         self.konsensus_ozet_lbl.pack(anchor="w", padx=15, pady=(0, 4))
@@ -5707,7 +5893,7 @@ class OmegaTahminArayuzu:
         self.kupon_tablosu.heading("tarih", text="Tarih/Saat")
         self.kupon_tablosu.heading("lig", text="Lig")
         self.kupon_tablosu.heading("mac", text="Karşılaşma")
-        self.kupon_tablosu.heading("tahmin", text="Seçilen Market")
+        self.kupon_tablosu.heading("tahmin", text="Seçilen Resmi Market")
         self.kupon_tablosu.heading("oran", text="Oran")
         self.kupon_tablosu.heading("ihtimal", text="AI İhtimali (%)")
         self.kupon_tablosu.heading("neden", text="Yapay Zeka Seçim Gerekçesi")
@@ -5716,7 +5902,7 @@ class OmegaTahminArayuzu:
         self.kupon_tablosu.column("tarih", width=85, anchor="center")
         self.kupon_tablosu.column("lig", width=130)
         self.kupon_tablosu.column("mac", width=175)
-        self.kupon_tablosu.column("tahmin", width=170, anchor="center")
+        self.kupon_tablosu.column("tahmin", width=185, anchor="center")
         self.kupon_tablosu.column("oran", width=65, anchor="center")
         self.kupon_tablosu.column("ihtimal", width=95, anchor="center")
         self.kupon_tablosu.column("neden", width=260)
@@ -5802,7 +5988,7 @@ class OmegaTahminArayuzu:
             risk_etiket = "🔥 YÜKSEK RİSK (YÜKSEK ORAN & VALUE SÜRPRİZ)"
         else:
             risk_kod = "ORTA"
-            risk_etiket = "⚖️ ORTA RİSK (ÇEŞİTLİ MARKET & İDEAL VALUE)"
+            risk_etiket = "⚖️ ORTA RİSK (RESMİ MARKET & İDEAL VALUE)"
 
         adet_str = self.kupon_adet_combo.get().split()[0]
         mac_sayisi = int(adet_str) if adet_str.isdigit() else 3
@@ -5831,7 +6017,7 @@ class OmegaTahminArayuzu:
             ))
 
         self.uye_github_yoneticisi.yerel_log_ekle(
-            "Yönetici (Admin)", f"🎫 AI Kupon Oluşturuldu ({risk_kod} | {mac_sayisi} Maç | Oran: {kupon_sonuc['toplam_oran']:.2f})"
+            "Yönetici (Admin)", f"🎫 AI Kupon Oluşturuldu ({risk_kod} | {gun_siniri} Gün | {mac_sayisi} Maç | Oran: {kupon_sonuc['toplam_oran']:.2f})"
         )
         self._ziyaretci_loglarini_guncelle()
 
@@ -5862,7 +6048,7 @@ class OmegaTahminArayuzu:
 
         kp_sutlar_p = ("sira", "tarih", "lig", "mac", "tahmin", "oran", "ihtimal", "neden")
         liste_kutu = tk.LabelFrame(
-            pencere, text=" 📋 18+10 Kalibreli AI & 1.000 Deneme Optimize Kuponu (Çift Tıkla -> Maçın 13'lü Detayını Aç) ",
+            pencere, text=" 📋 Seçilen Günlerdeki En Yüksek İhtimalli Kupon (Çift Tıkla -> Maçın 13'lü Detayını Aç) ",
             bg="#1e293b", fg="#38bdf8", font=(f_ana, 10, "bold")
         )
         liste_kutu.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 14))
@@ -5873,7 +6059,7 @@ class OmegaTahminArayuzu:
             ("tarih", "Tarih/Saat", 90),
             ("lig", "Lig", 145),
             ("mac", "Karşılaşma", 185),
-            ("tahmin", "Seçilen Market", 180),
+            ("tahmin", "Seçilen Resmi Market", 185),
             ("oran", "Oran", 75),
             ("ihtimal", "AI İhtimali (%)", 110),
             ("neden", "Yapay Zeka Gerekçesi", 260)
@@ -5936,7 +6122,7 @@ class OmegaTahminArayuzu:
         self._ziyaretci_loglarini_guncelle()
 
         pencere = tk.Toplevel(self.root)
-        pencere.title(f"🔥 {ev.upper()} vs {dep.upper()} ({mac.get('tarih_str', '-')}) — 13 Sistemli Tüm İstatistikler")
+        pencere.title(f"🔥 {ev.upper()} vs {dep.upper()} ({mac.get('tarih_str', '-')}) — 13 Sistemli Resmi Bahis Marketleri")
         self._pencereyi_ortala(1160, 720, pencere)
         pencere.configure(bg="#0f172a")
         pencere.transient(self.root)
@@ -5953,7 +6139,7 @@ class OmegaTahminArayuzu:
         ilk3_metin = "   |   ".join([f"{i+1}) {m['market']} (%{m['ortalama']:.1f})" for i, m in enumerate(ilk_3)])
         tk.Label(
             banko_frame,
-            text=f"⭐ En Yüksek Yüzdeli İlk 3 Banko İstatistik:   {ilk3_metin}",
+            text=f"⭐ En Yüksek Yüzdeli İlk 3 Banko Market:   {ilk3_metin}",
             bg="#064e3b", fg="#fbbf24", font=(f_ana, 10, "bold")
         ).pack(anchor="w", pady=(5, 0))
 
@@ -5962,14 +6148,14 @@ class OmegaTahminArayuzu:
 
         ust_kutu = tk.LabelFrame(
             orta_paned,
-            text=" 📊 Maçla İlgili Tüm İstatistikler (KG Var, Frikik, 1.5/2.5/3.5 Üst, Korner, Kart, Penaltı) & 13 Sistem Ortalamaları (%) ",
+            text=" 📊 Maçla İlgili Resmi Misli/İddaa Marketleri (MS, Çifte Şans, KG Var/Yok, 1.5/2.5/3.5 Alt-Üst, İY 0.5, Takım Gol) & 13 Sistem Ortalamaları (%) ",
             bg="#1e293b", fg="#38bdf8", font=(f_ana, 10, "bold")
         )
         orta_paned.add(ust_kutu, minsize=310)
 
         m_sutunlar = ("market", "ortalama", "adil_oran", "min_max", "karar")
         market_tree = ttk.Treeview(ust_kutu, columns=m_sutunlar, show="headings", height=11)
-        market_tree.heading("market", text="İstatistik / Özel Bahis Marketi (Satıra Tıkla -> Altta 13 Sistemi Gör)")
+        market_tree.heading("market", text="Resmi Bahis Marketi (Satıra Tıkla -> Altta 13 Sistemi Gör)")
         market_tree.heading("ortalama", text="13 Sistem Ortalaması (%)")
         market_tree.heading("adil_oran", text="Adil Oran")
         market_tree.heading("min_max", text="13 Sistem En Düşük - En Yüksek")
@@ -5984,7 +6170,7 @@ class OmegaTahminArayuzu:
 
         alt_kutu = tk.LabelFrame(
             orta_paned,
-            text=" 🧠 Seçili İstatistik İçin 13 Yapay Zeka ve Matematiksel Sistemin Tek Tek Hesapladığı Yüzdeler (%) ",
+            text=" 🧠 Seçili Market İçin 13 Yapay Zeka ve Matematiksel Sistemin Tek Tek Hesapladığı Yüzdeler (%) ",
             bg="#1e293b", fg="#4ade80", font=(f_ana, 10, "bold")
         )
         orta_paned.add(alt_kutu, minsize=240)
@@ -6358,6 +6544,14 @@ class OmegaTahminArayuzu:
     def _lig_filtrele(self, event=None):
         secili_lig = self.lig_combo.get()
         aranan = (self.arama_var.get() if hasattr(self, "arama_var") else "").strip().lower()
+
+        gun_secim_str = self.bulten_gun_combo.get() if hasattr(self, "bulten_gun_combo") else "1-7 Gün"
+        if "Sadece 1." in gun_secim_str:
+            maks_gun = 1
+        else:
+            eslesme = re.search(r"(\d+)\.\s*Gün", gun_secim_str)
+            maks_gun = int(eslesme.group(1)) if eslesme else 7
+
         for item in self.mac_tablosu.get_children():
             self.mac_tablosu.delete(item)
 
@@ -6368,6 +6562,11 @@ class OmegaTahminArayuzu:
         )
         self.aktif_maclar = []
         for m in sirali_liste:
+            g_no = _turkiye_gun_farki_hesapla(int(m.get('unix_zamani', 0)))
+            m['gun_farki'] = g_no
+            if g_no > maks_gun:
+                continue
+
             if "Ana Bülten" in secili_lig:
                 if not m.get("vitrin_mi", True) and m['lig'] not in CanliInternetVeriMotoru.VITRIN_ONCELIK_SIRASI:
                     continue
@@ -6381,7 +6580,7 @@ class OmegaTahminArayuzu:
 
             self.aktif_maclar.append(m)
             self.mac_tablosu.insert("", tk.END, values=(
-                m.get('tarih_str', '-'), m['lig'], f"{m['ev']} - {m['dep']}",
+                f"{m.get('tarih_str', '-')} ({g_no}.G)", m['lig'], f"{m['ev']} - {m['dep']}",
                 f"{m['oran_1']:.2f}", f"{m['oran_x']:.2f}", f"{m['oran_2']:.2f}"
             ))
 
@@ -6415,6 +6614,7 @@ class OmegaTahminArayuzu:
         ai_ortak = sonuc['ai_ortak']
         simdi_str = _turkiye_saati_simdi().strftime("%d.%m.%Y %H:%M:%S")
         tarih_bilgi = mac.get('tarih_str', '-')
+        gun_no = mac.get('gun_farki', 1)
 
         etiketler = ['MS 2 (Deplasman)', 'MS X (Beraberlik)', 'MS 1 (Ev Sahibi)']
         en_iyi_idx = int(np.argmax(nihai))
@@ -6428,7 +6628,7 @@ class OmegaTahminArayuzu:
         value_metni = f"💎 DEĞERLİ ORAN (VALUE: +%{value_farki:.1f} | Kelly: %{sonuc['kelly_orani']:.1f})" if value_farki > 1.5 else "Dengeli Piyasa Oranı"
 
         self.mac_baslik_lbl.config(
-            text=f"🏟️ [{tarih_bilgi}] {ev.upper()} vs {dep.upper()}  |  {mac['lig']}  |  Oranlar: {mac['oran_1']:.2f} - {mac['oran_x']:.2f} - {mac['oran_2']:.2f}"
+            text=f"🏟️ [{tarih_bilgi} | {gun_no}. Gün] {ev.upper()} vs {dep.upper()}  |  {mac['lig']}  |  Oranlar: {mac['oran_1']:.2f} - {mac['oran_x']:.2f} - {mac['oran_2']:.2f}"
         )
         self.konsensus_ozet_lbl.config(
             text=f"{sonuc['opt_deneme']} DENEME OPTİMİZE KONSENSÜS:  MS 1: %{nihai[2]*100:.2f}  |  MS X: %{nihai[1]*100:.2f}  |  MS 2: %{nihai[0]*100:.2f}  (Güven: %{sonuc['guven_skoru']:.1f})"
@@ -6504,8 +6704,9 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
     GitHub'ın Ubuntu sunucusunda bilgisayardan tamamen bağımsız olarak çalışır:
     1) Önceki çalışmadan kalan eski JSON parçalarını (omega_canli_part_*.json, omega_canli_veri.json) sıfırlar.
     2) Canlı gelecek maçları ve takımların son 3 sezonluk + son 60 günlük geçmiş maçlarını sıfırdan indirir.
-    3) 18 Ana Sistemi ve 10 Yan Market (40 Kalibreli Scikit-Learn Modeli) yapay zeka motorunu gerçekçi xG/Dixon-Coles ile eğitir.
-    4) Her maç için 1.000 farklı matematiksel kombinasyonu, 100.000 Monte Carlo simülasyonunu ve 5 boyutlu Akıllı Kuponu çalıştırır.
+    3) 18 Ana Sistemi ve Resmi Misli/İddaa Gol/KG/İY yapay zeka motorunu gerçekçi xG/Dixon-Coles ile eğitir.
+    4) Her maçın gününü Türkiye Saatine (UTC+3) göre 1'den 7'ye kadar kesin hesaplar ve seçilen gün sınırına göre
+       en yüksek ihtimalli Akıllı Kuponu oluşturur.
     5) Sonuçları sıkıştırılmış parçalı JSON paketlerine (omega_canli_meta.json + omega_canli_part_1.json...) yazar.
     """
     istek_id = os.environ.get("OMEGA_ISTEK_ID", "otonom_20dk").strip() or "otonom_20dk"
@@ -6516,13 +6717,12 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
     except Exception:
         kupon_adet = 3
     try:
-        kupon_gun = int(os.environ.get("OMEGA_KUPON_GUN", "7") or "7")
+        kupon_gun = max(1, min(7, int(os.environ.get("OMEGA_KUPON_GUN", "1") or "1")))
     except Exception:
-        kupon_gun = 7
+        kupon_gun = 1
     ozel_ev = os.environ.get("OMEGA_OZEL_EV", "").strip()
     ozel_dep = os.environ.get("OMEGA_OZEL_DEP", "").strip()
 
-    # Eski JSON dosyalarını silmeden önce yalnızca gh_cfg ve üyeleri kurtar
     mevcut_veri = {}
     for okunacak_meta in ("omega_canli_meta.json", "omega_canli_veri.json"):
         if os.path.exists(okunacak_meta):
@@ -6544,10 +6744,9 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         except Exception:
             pass
 
-    # Önceki çalışmadan kalan tüm geçici JSON parçalarını sıfırla / temizle
     OmegaTahminArayuzu._gecici_dosyalari_temizle()
 
-    print(f"🚀 OMEGA Bulut Python AI v6.5 Başlatıldı (İstek: {istek_id} | İşlem: {islem_tipi})...")
+    print(f"🚀 OMEGA Bulut Python AI v6.5 Başlatıldı (İstek: {istek_id} | İşlem: {islem_tipi} | Gün Sınırı: {kupon_gun})...")
     ayarlar = PlatformAyarlari("CLOUD")
     ayarlar.donanim_hizlandirmasini_uygula()
     veri_motoru = CanliInternetVeriMotoru()
@@ -6560,15 +6759,17 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
     web_maclar = []
     sema_sozluk = {}
     for m in veri_motoru.gelecek_maclar:
-        if int(m.get("unix_zamani", 0)) <= guncel_utc:
+        u_ts = int(m.get("unix_zamani", 0))
+        if u_ts <= guncel_utc:
             continue
+        m["gun_farki"] = _turkiye_gun_farki_hesapla(u_ts)
         analiz = ai_motoru.tam_analiz_yap(m)
         detay_13 = ai_motoru.onuc_sistem_detayli_istatistik_analizi(m, analiz)
         if not sema_sozluk:
             sema_sozluk = UyeVeGitHubYoneticisi._sema_sozlugu_cikar(m, analiz, detay_13)
         web_maclar.append(UyeVeGitHubYoneticisi._mac_analizini_json_yap(m, analiz, detay_13))
 
-    # Kupon Oluşturucu: Bilgisayardaki Python ile birebir aynı 5 boyutlu Akıllı Kupon algoritmasıyla hesaplanır
+    # Kupon Oluşturucu: Seçilen Türkiye takvim gününe (1..7) göre en yüksek kazanma ihtimalli maçları seçer
     k_sonuc = ai_motoru.akilli_kupon_olustur(
         veri_motoru.gelecek_maclar,
         risk_seviyesi=kupon_risk,
@@ -6603,7 +6804,6 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         ]
     }
 
-    # Özel Maç Analizi: Webden iki takım seçildiyse Python'da 18+10 Kalibreli AI ile anlık hesaplanır
     ozel_mac_sonucu = None
     if ozel_ev and ozel_dep and ozel_ev != ozel_dep:
         ev_std = veri_motoru._takim_bul_veya_ekle(ozel_ev, "Özel Karşılaşma")
@@ -6643,7 +6843,6 @@ def bulut_uzerinde_otonom_egit_ve_guncelle():
         "maclar": web_maclar
     }
 
-    # Eski JSON dosyalarını temizleyip yeni sıkıştırılmış parçalı JSON dosyalarını (~140 KB) üret
     part_dosyalari = UyeVeGitHubYoneticisi.parcali_json_dosyalarini_diske_yaz(anlik_paket)
 
     with open("omega_uyeler.json", "w", encoding="utf-8") as f:
