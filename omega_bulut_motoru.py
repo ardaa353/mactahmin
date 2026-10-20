@@ -1506,11 +1506,15 @@ class UyeVeGitHubYoneticisi:
             </select>
           </div>
           <div>
-            <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Zaman Aralığı:</div>
+            <div style="font-size:11px; color:#d8b4fe; margin-bottom:3px;">Zaman Aralığı (Oynanacağı Tarihler):</div>
             <select id="sel-kupon-gun" style="width:100%;">
-              <option value="1">📅 1 Gün İçinde</option>
-              <option value="2">📅 2 Gün İçinde</option>
-              <option value="7" selected>📅 1 Hafta İçinde</option>
+              <option value="1">📅 1. Gün Maçları</option>
+              <option value="2">📅 2 Günlük Maçlar</option>
+              <option value="3">📅 3 Günlük Maçlar</option>
+              <option value="4">📅 4 Günlük Maçlar</option>
+              <option value="5">📅 5 Günlük Maçlar</option>
+              <option value="6">📅 6 Günlük Maçlar</option>
+              <option value="7" selected>📅 7 Günlük Maçlar</option>
             </select>
           </div>
           <button class="coupon-create-btn" onclick="webAkilliKuponOlustur(true)">🤖 AI KUPONU<br>OLUŞTUR</button>
@@ -2377,6 +2381,20 @@ function arayuzuBaslat() {
   });
 
   seciliMacAnahtari = VERI.maclar[0] ? VERI.maclar[0].ev + " - " + VERI.maclar[0].dep : "";
+  const selKuponGun = document.getElementById("sel-kupon-gun");
+  if (selKuponGun) {
+    const oncekiGun = selKuponGun.value || "1";
+    const simdi = new Date();
+    const fmt = (d) => String(d.getDate()).padStart(2, '0') + "." + String(d.getMonth() + 1).padStart(2, '0');
+    const bugunStr = fmt(simdi);
+    selKuponGun.innerHTML = "";
+    for (let g = 1; g <= 7; g++) {
+      const bitis = new Date(simdi.getTime() + (g - 1) * 86400000);
+      const bitisStr = fmt(bitis);
+      const tarihMetni = (g === 1) ? `(${bugunStr} Bugün / 24 Saat)` : `(${bugunStr} - ${bitisStr} Arası)`;
+      selKuponGun.innerHTML += `<option value="${g}" ${String(g)===String(oncekiGun)?'selected':''}>📅 ${g} Gün ${tarihMetni}</option>`;
+    }
+  }
   ligFiltrele();
 }
 
@@ -2505,7 +2523,7 @@ function pythonKuponunuEkranaBas(kuponSonuc, modalGoster = true) {
   const risk = kuponSonuc.risk_seviyesi || "ORTA";
   const gunSiniri = kuponSonuc.gun_siniri || 7;
   const riskEtiket = risk === "DUSUK" ? "🛡️ DÜŞÜK RİSK (GITHUB PYTHON 18+10 AI BANKO KUPON)" : (risk === "ORTA" ? "⚖️ ORTA RİSK (GITHUB PYTHON 18+10 AI VALUE KUPON)" : "🔥 YÜKSEK RİSK (GITHUB PYTHON 18+10 AI SÜRPRİZ KUPONU)");
-  const gunEtiket = gunSiniri === 1 ? "1 Gün İçinde" : (gunSiniri === 2 ? "2 Gün İçinde" : "1 Hafta İçinde");
+  const gunEtiket = gunSiniri === 1 ? "1. Gün (Bugün / 24 Saat)" : `${gunSiniri} Günlük Bülten`;
 
   document.getElementById("mkupon-ozet").textContent =
     `${riskEtiket} | ${kuponSonuc.maclar.length} Maç (${gunEtiket}) ➔ TOPLAM ORAN: ${Number(kuponSonuc.toplam_oran).toFixed(2)}`;
@@ -4879,23 +4897,43 @@ class DerinYapayZekaVeSimulasyonMotoru:
 
     def akilli_kupon_olustur(self, mac_listesi, risk_seviyesi="ORTA", mac_sayisi=3, gun_siniri=7):
         """
-        5 Boyutlu Yeni Nesil Akıllı Kupon Motoru (Masaüstü Python & GitHub Bulut Python Ortak Çekirdek):
-        Her maçı ve her marketi şu 5 kritere göre puanlar:
-        1) 18+10 Kalibreli Yapay Zeka İhtimali ve En Düşük Çeyrek (25th Percentile) Taban Güvencesi
-        2) 13 Sistem Arası Mutabakat (Düşük Standart Sapma = Yüksek Konsensüs)
-        3) 100.000 Monte Carlo 4-Senaryo Stres Testi Dayanıklılığı (En Kötü Senaryoda Çökmeme)
-        4) Piyasa Referans Oranına Göre Gerçek Value (Beklenen Değer EV) ve Kesirli Kelly Oranı
-        5) Kupon İçi Korelasyon Koruması (Farklı Lig ve Market Çeşitliliği)
+        5 Boyutlu Yeni Nesil Akıllı Kupon Motoru (Kesin Tarih/Gün Sınırlı):
+        - Seçilen gün sınırı (1..7 gün) dışındaki hiçbir maçı (örn. 1 gün seçildiğinde 3-5 gün sonraki maçları)
+          kesinlikle havuza dahil etmez.
+        - Seçilen gün(ler) içinde oynanacak tüm maçları 18+10 yapay zeka modeliyle tarayıp en yüksek kazanma
+          olasılıklı maçları seçer.
         """
         simdi_utc = _utc_simdi_ts()
-        gelecek_filtreli = [m for m in mac_listesi if int(m.get('unix_zamani', 0)) > simdi_utc]
-        vitrin_adaylar = [m for m in gelecek_filtreli if int(m.get('gun_farki', 1)) <= int(gun_siniri) and m.get('vitrin_mi', True)]
-        if len(vitrin_adaylar) >= int(mac_sayisi):
-            aday_maclar = vitrin_adaylar
-        else:
-            aday_maclar = [m for m in gelecek_filtreli if int(m.get('gun_farki', 1)) <= int(gun_siniri)]
-            if len(aday_maclar) < int(mac_sayisi):
-                aday_maclar = gelecek_filtreli
+        simdi_tr = _turkiye_saati_simdi()
+        gun_siniri_int = max(1, min(7, int(gun_siniri)))
+
+        # Türkiye saatiyle seçilen günün son takvim tarihi ve saat sınırı:
+        # 1 Gün seçildiğinde: Bugünün maçları + önümüzdeki 24 saat içindeki maçlar (Asla 2-5 gün sonrası girmez!)
+        # 2..7 Gün seçildiğinde: Tam olarak o takvim günleri arasındaki maçlar
+        son_takvim_gunu = (simdi_tr + datetime.timedelta(days=gun_siniri_int - 1)).date()
+        maks_saat_saniye = simdi_utc + (gun_siniri_int * 86400)
+
+        aday_maclar = []
+        for m in mac_listesi:
+            u_zaman = int(m.get('unix_zamani', 0))
+            if u_zaman <= simdi_utc:
+                continue
+            mac_tr_dt = datetime.datetime.fromtimestamp(u_zaman, datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=3)
+            if mac_tr_dt.date() <= son_takvim_gunu or u_zaman <= maks_saat_saniye:
+                aday_maclar.append(m)
+
+        # Eğer seçilen günde (örneğin gece yarısı) maç sayısı istenen kupon adedinden azsa,
+        # ASLA 3-5 gün sonraki maçlara atlama! Sadece kronolojik olarak en yakın saatli maçı ekle:
+        if len(aday_maclar) < int(mac_sayisi):
+            kalan_sirali = sorted(
+                [m for m in mac_listesi if int(m.get('unix_zamani', 0)) > simdi_utc and m not in aday_maclar],
+                key=lambda x: int(x.get('unix_zamani', 0))
+            )
+            for ek_m in kalan_sirali:
+                if int(ek_m.get('unix_zamani', 0)) <= maks_saat_saniye + 43200:  # En fazla +12 saat (ertesi gün öğlen)
+                    aday_maclar.append(ek_m)
+                if len(aday_maclar) >= int(mac_sayisi):
+                    break
 
         mac_degerlendirmeleri = []
         for m in aday_maclar:
@@ -5565,10 +5603,23 @@ class OmegaTahminArayuzu:
         self.kupon_adet_combo.grid(row=1, column=1, padx=5, pady=3)
 
         tk.Label(kupon_frame, text="Zaman Aralığı:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=2, column=0, padx=5, pady=3, sticky="w")
+        tk.Label(kupon_frame, text="Zaman Aralığı:", bg="#191636", fg="#f8fafc", font=(f_ana, 9)).grid(row=2, column=0, padx=5, pady=3, sticky="w")
+        simdi_tr_dt = _turkiye_saati_simdi()
+        bugun_kisa = simdi_tr_dt.strftime("%d.%m")
+        gun_degerleri = []
+        for g in range(1, 8):
+            bitis_kisa = (simdi_tr_dt + datetime.timedelta(days=g - 1)).strftime("%d.%m")
+            if g == 1:
+                gun_degerleri.append(f"📅 1 Gün ({bugun_kisa} Bugün / 24 Saat)")
+            else:
+                gun_degerleri.append(f"📅 {g} Gün ({bugun_kisa} - {bitis_kisa} Arası)")
+
         self.kupon_gun_combo = ttk.Combobox(
-            kupon_frame, state="readonly", width=22, font=(f_ana, 9),
-            values=["📅 1 Gün İçinde", "📅 2 Gün İçinde", "📅 1 Hafta İçinde"]
+            kupon_frame, state="readonly", width=26, font=(f_ana, 9),
+            values=gun_degerleri
         )
+        self.kupon_gun_combo.current(0)
+        self.kupon_gun_combo.grid(row=2, column=1, padx=5, pady=3)
         self.kupon_gun_combo.current(2)
         self.kupon_gun_combo.grid(row=2, column=1, padx=5, pady=3)
 
@@ -5757,15 +5808,9 @@ class OmegaTahminArayuzu:
         mac_sayisi = int(adet_str) if adet_str.isdigit() else 3
 
         gun_metin = self.kupon_gun_combo.get()
-        if "1 Gün" in gun_metin:
-            gun_siniri = 1
-            gun_etiket = "1 Gün İçinde"
-        elif "2 Gün" in gun_metin:
-            gun_siniri = 2
-            gun_etiket = "2 Gün İçinde"
-        else:
-            gun_siniri = 7
-            gun_etiket = "1 Hafta İçinde"
+        gun_eslesme = re.search(r"(\d+)\s*Gün", gun_metin)
+        gun_siniri = int(gun_eslesme.group(1)) if gun_eslesme else 1
+        gun_etiket = gun_metin.replace("📅 ", "")
 
         kupon_sonuc = self.ai_motoru.akilli_kupon_olustur(
             self.veri_motoru.gelecek_maclar,
