@@ -1,12 +1,21 @@
 [
   {
-    "tarih": "21.10.2026 01:18:51",
+    "tarih": "21.10.2026 01:18:52",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
     "konum": "Masaüstü / Tkinter",
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🔥 13'lü İstatistik Penceresi Açıldı: 15 de Agosto - Simba"
+  },
+  {
+    "tarih": "21.10.2026 01:18:50",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (DUSUK | 3 Maç | Oran: 4.25)"
   },
   {
     "tarih": "21.10.2026 01:17:17",
@@ -1428,15 +1437,5 @@
     "ekran": "1600x1200",
     "cihaz": "Linux x86_64 | Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like G",
     "islem": "Giriş Ekranını Açtı"
-  },
-  {
-    "tarih": "17.10.2026 16:27:51",
-    "kullanici": "arda",
-    "ip": "5.24.227.253",
-    "konum": "Ankara / Türkiye",
-    "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
-    "ekran": "1470x764",
-    "cihaz": "MacIntel | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1",
-    "islem": "🔥 13'lü İstatistik Penceresini Açtı: Sheffield United - Sunderland"
   }
 ]
