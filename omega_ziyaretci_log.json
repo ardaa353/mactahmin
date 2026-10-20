@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 01:19:00",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🎫 AI Kupon Oluşturuldu (DUSUK | 3 Maç | Oran: 4.25)"
+  },
+  {
     "tarih": "21.10.2026 01:18:52",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1426,16 +1435,6 @@
     "isp": "Datacamp Limited",
     "ekran": "1920x1080",
     "cihaz": "Win32 | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT",
-    "islem": "Giriş Ekranını Açtı"
-  },
-  {
-    "tarih": "17.10.2026 15:45:32",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "159.26.110.97",
-    "konum": "Warsaw / Poland",
-    "isp": "Proton AG",
-    "ekran": "1600x1200",
-    "cihaz": "Linux x86_64 | Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like G",
     "islem": "Giriş Ekranını Açtı"
   }
 ]
