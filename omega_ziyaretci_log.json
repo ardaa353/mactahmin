@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 01:55:36",
+    "kullanici": "ümit",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "✅ Yeni Üye Kaydı (👑 Admin Yetkili - Tkinter)"
+  },
+  {
     "tarih": "21.10.2026 01:52:41",
     "kullanici": "Yönetici (Admin)",
     "ip": "127.0.0.1 (Yerel Yönetim)",
@@ -1422,16 +1431,6 @@
     "isp": "HostRoyale Technologies Pvt Ltd",
     "ekran": "390x844",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 26_3_0 like Mac OS X) AppleWeb",
-    "islem": "Giriş Ekranını Açtı"
-  },
-  {
-    "tarih": "17.10.2026 14:07:17",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "3.91.176.6",
-    "konum": "Washington / United States",
-    "isp": "Amazon.com, Inc.",
-    "ekran": "1600x1200",
-    "cihaz": "Linux x86_64 | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT",
     "islem": "Giriş Ekranını Açtı"
   }
 ]
