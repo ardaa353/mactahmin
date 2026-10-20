@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 00:46:15",
+    "kullanici": "Yönetici (Admin)",
+    "ip": "127.0.0.1 (Yerel Yönetim)",
+    "konum": "Masaüstü / Tkinter",
+    "isp": "Yerel Sistem",
+    "cihaz": "Python DARWIN Ana Motoru",
+    "islem": "🚀 OMEGA Quantum AI v6.5 Ana Motoru Başlatıldı"
+  },
+  {
     "tarih": "20.10.2026 01:16:01",
     "kullanici": "Efe",
     "ip": "176.239.200.30",
@@ -1435,14 +1444,5 @@
     "isp": "Yerel Sistem",
     "cihaz": "Python DARWIN Ana Motoru",
     "islem": "🎫 AI Kupon Oluşturuldu (ORTA | 3 Maç | Oran: 3.17)"
-  },
-  {
-    "tarih": "17.10.2026 16:08:05",
-    "kullanici": "arda",
-    "ip": "127.0.0.1 (Yerel Yönetim)",
-    "konum": "Masaüstü / Tkinter",
-    "isp": "Yerel Sistem",
-    "cihaz": "Python DARWIN Ana Motoru",
-    "islem": "⚙️ 👑 ADMİN YETKİSİ VERİLDİ (Tkinter)"
   }
 ]
