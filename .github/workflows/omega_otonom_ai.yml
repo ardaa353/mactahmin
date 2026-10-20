@@ -22,9 +22,9 @@ on:
         required: false
         default: '3'
       kupon_gun:
-        description: 'Kupon Gun Siniri'
+        description: 'Kupon Gun Siniri (1-7)'
         required: false
-        default: '7'
+        default: '1'
       ozel_ev:
         description: 'Ozel Analiz Ev Sahibi'
         required: false
