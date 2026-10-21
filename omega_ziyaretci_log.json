@@ -1,5 +1,14 @@
 [
   {
+    "tarih": "21.10.2026 13:56:14",
+    "kullanici": "Crozzier",
+    "ip": "79.123.141.88",
+    "konum": "Erzincan / Türkiye",
+    "isp": "National Academic Network and Information Center",
+    "cihaz": "Linux armv81 | Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, lik",
+    "islem": "✅ Siteye Giriş Yaptı (Canlı GitHub Python Modu)"
+  },
+  {
     "tarih": "21.10.2026 02:21:36",
     "kullanici": "batu",
     "ip": "176.239.200.30",
@@ -1419,16 +1428,6 @@
     "isp": "TURKCELL ILETISIM HIZMETLERI A.S.",
     "ekran": "393x695",
     "cihaz": "iPhone | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKi",
-    "islem": "Giriş Ekranını Açtı"
-  },
-  {
-    "tarih": "17.10.2026 14:55:04",
-    "kullanici": "Ziyaretçi (Giriş Ekranında)",
-    "ip": "100.31.237.19",
-    "konum": "Ashburn / United States",
-    "isp": "Amazon.com, Inc.",
-    "ekran": "1920x1080",
-    "cihaz": "Linux x86_64 | Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_8 like Mac OS X) AppleWeb",
     "islem": "Giriş Ekranını Açtı"
   }
 ]
