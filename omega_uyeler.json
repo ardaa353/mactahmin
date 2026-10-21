@@ -34,5 +34,11 @@
     "sifre_maskeli": "332c20b3",
     "admin_mi": true,
     "kayit_tarihi": "21.10.2026 01:55"
+  },
+  "Crozzier": {
+    "sifre_hash": "5c53f1f7",
+    "sifre_maskeli": "7c7027383433222b2c0c",
+    "admin_mi": false,
+    "kayit_tarihi": "21.10.2026 13:55"
   }
 }
